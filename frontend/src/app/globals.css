@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 @keyframes vibrate {
   0% {
     transform: translate(0);
@@ -106,24 +111,24 @@
   }
 
   .dark {
-    --background: 0 0% 3.9%;
+    --background: 0 0% 13%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+    --card: 0 0% 16%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+    --popover: 0 0% 16%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
     --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
+    --secondary: 0 0% 22%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
+    --muted: 0 0% 22%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
+    --accent: 0 0% 22%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
+    --border: 0 0% 26%;
+    --input: 0 0% 26%;
     --ring: 0 0% 83.1%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -138,7 +143,7 @@
     @apply border-border;
   }
 
-  /* html, */
+  html,
   body {
     @apply bg-background text-foreground;
     overflow: hidden;
@@ -178,6 +183,27 @@
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #d1d5db transparent;
+  }
+
+  /* BlockNote theme — map bn-* variables to shadcn variables so they stay in sync */
+  .bn-root[data-color-scheme] {
+    --bn-colors-editor-background: hsl(var(--background));
+    --bn-colors-editor-text: hsl(var(--foreground));
+    --bn-colors-menu-background: hsl(var(--card));
+    --bn-colors-menu-text: hsl(var(--card-foreground));
+    --bn-colors-tooltip-background: hsl(var(--popover));
+    --bn-colors-tooltip-text: hsl(var(--popover-foreground));
+    --bn-colors-hovered-background: hsl(var(--accent));
+    --bn-colors-hovered-text: hsl(var(--accent-foreground));
+    --bn-colors-selected-background: hsl(var(--primary));
+    --bn-colors-selected-text: hsl(var(--primary-foreground));
+    --bn-colors-disabled-background: hsl(var(--muted));
+    --bn-colors-disabled-text: hsl(var(--muted-foreground));
+    --bn-colors-shadow: hsl(var(--border));
+    --bn-colors-border: hsl(var(--border));
+    --bn-colors-side-menu: hsl(var(--muted-foreground));
+    --bn-border-radius: var(--radius);
+    --bn-font-family: inherit;
   }
 
   /* BlockNote Editor - Override fixed dimensions for responsive layout */

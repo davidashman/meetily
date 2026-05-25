@@ -98,11 +98,11 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 </Tooltip>
                 <div className="flex-1">
                     {isStreaming ? (
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <div className="bg-muted border border-border rounded-lg px-3 py-2">
+                            <p className="text-base text-foreground leading-relaxed">{displayText}</p>
                         </div>
                     ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
+                        <p className="text-base text-foreground leading-relaxed">{displayText}</p>
                     )}
                 </div>
             </div>
@@ -228,7 +228,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             {/* Recording Status Bar - Sticky at top, always visible when recording */}
             <AnimatePresence>
                 {isRecording && (
-                    <div className="sticky top-0 z-10 bg-white pb-2">
+                    <div className="sticky top-0 z-10 bg-card pb-2">
                         <RecordingStatusBar isPaused={isPaused} />
                     </div>
                 )}

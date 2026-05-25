@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 import dynamic from 'next/dynamic';
 import { Summary, SummaryDataResponse, SummaryFormat, BlockNoteBlock } from '@/types';
 import { AISummary } from './index';
@@ -74,6 +75,7 @@ export const BlockNoteSummaryView = forwardRef<BlockNoteSummaryViewRef, BlockNot
   meeting,
   onDirtyChange
 }, ref) => {
+  const { theme } = useTheme();
   const { format, data } = detectSummaryFormat(summaryData);
   const [isDirty, setIsDirty] = useState(false);
   const [currentBlocks, setCurrentBlocks] = useState<Block[]>([]);
@@ -248,7 +250,7 @@ export const BlockNoteSummaryView = forwardRef<BlockNoteSummaryViewRef, BlockNot
                 handleEditorChange(editor.document);
               }
             }}
-            theme="light"
+            theme={theme}
           />
         </div>
       </div>

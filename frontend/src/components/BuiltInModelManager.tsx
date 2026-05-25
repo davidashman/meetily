@@ -291,11 +291,11 @@ export function BuiltInModelManager({ selectedModel, onModelSelect }: BuiltInMod
               className={cn(
                 'p-4 rounded-lg border transition-colors',
                 modelIsDownloading
-                  ? 'bg-white border-gray-200'
+                  ? 'bg-card border-border'
                   : 'bg-card',
                 selectedModel === model.name
-                  ? 'ring-2 ring-gray-800 border-gray-800'
-                  : 'border-gray-200 hover:border-gray-300',
+                  ? 'ring-2 ring-foreground border-foreground'
+                  : 'border-border hover:border-muted-foreground',
                 isAvailable && !modelIsDownloading && 'cursor-pointer'
               )}
               onClick={() => {
@@ -307,43 +307,43 @@ export function BuiltInModelManager({ selectedModel, onModelSelect }: BuiltInMod
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base font-bold text-gray-900">{model.display_name || model.name}</span>
+                    <span className="text-base font-bold text-foreground">{model.display_name || model.name}</span>
                     {isAvailable && (
                       <>
-                        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                          <span className="w-2 h-2 rounded-full bg-green-600"></span>
+                        <span className="text-xs text-green-500 font-medium flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
                           Ready
                         </span>
                         {selectedModel === model.name && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                          <span className="px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 dark:text-blue-300 rounded">
                             Selected
                           </span>
                         )}
                       </>
                     )}
                     {isCorrupted && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded flex items-center gap-1">
+                      <span className="px-2 py-0.5 text-xs font-medium bg-red-500/20 text-red-500 dark:text-red-400 rounded flex items-center gap-1">
                         <BadgeAlert className="w-3 h-3" />
                         Corrupted
                       </span>
                     )}
                     {isError && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">
+                      <span className="px-2 py-0.5 text-xs font-medium bg-red-500/20 text-red-500 dark:text-red-400 rounded">
                         Error
                       </span>
                     )}
                     {isNotDownloaded && !modelIsDownloading && (
-                      <span className="text-xs text-gray-600 font-medium">
+                      <span className="text-xs text-muted-foreground font-medium">
                         Not Downloaded
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-muted-foreground">
                     {model.description && (
                       <p className="mb-1">{model.description}</p>
                     )}
                     {(isError || isCorrupted) && (
-                      <p className="mb-1 text-xs text-red-600">
+                      <p className="mb-1 text-xs text-red-500 dark:text-red-400">
                         {isError && typeof model.status === 'object' && 'Error' in model.status
                           ? (model.status as any).Error
                           : isCorrupted
@@ -351,7 +351,7 @@ export function BuiltInModelManager({ selectedModel, onModelSelect }: BuiltInMod
                           : 'An error occurred'}
                       </p>
                     )}
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground/70">
                       <span>{model.size_mb}MB • {model.context_size} tokens</span>
                     </div>
                   </div>
@@ -436,7 +436,7 @@ export function BuiltInModelManager({ selectedModel, onModelSelect }: BuiltInMod
                   {/* Available - Show small trash icon (only if not currently selected) */}
                   {isAvailable && !modelIsDownloading && selectedModel !== model.name && (
                     <button
-                      className="p-2 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-red-600"
+                      className="p-2 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-red-600"
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteModel(model.name);
@@ -451,19 +451,19 @@ export function BuiltInModelManager({ selectedModel, onModelSelect }: BuiltInMod
 
               {/* Download progress bar */}
               {modelIsDownloading && progress !== undefined && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="mt-3 pt-3 border-t border-border">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-gray-900">Downloading...</span>
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span className="text-sm font-medium text-foreground">Downloading...</span>
+                    <span className="text-sm font-semibold text-foreground">
                       {Math.round(progress)}%
                     </span>
                   </div>
-                  <div className="text-sm text-gray-600 mb-2">
+                  <div className="text-sm text-muted-foreground mb-2">
                     {progressInfo?.totalMb > 0 ? (
                       <>
                         {progressInfo.downloadedMb.toFixed(1)} MB / {progressInfo.totalMb.toFixed(1)} MB
                         {progressInfo.speedMbps > 0 && (
-                          <span className="ml-2 text-gray-500">
+                          <span className="ml-2 text-muted-foreground/70">
                             ({progressInfo.speedMbps.toFixed(1)} MB/s)
                           </span>
                         )}
@@ -472,9 +472,9 @@ export function BuiltInModelManager({ selectedModel, onModelSelect }: BuiltInMod
                       <span>{model.size_mb} MB</span>
                     )}
                   </div>
-                  <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="w-full h-2.5 bg-secondary rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-gray-800 to-gray-900 rounded-full transition-all duration-300"
+                      className="h-full bg-primary rounded-full transition-all duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>

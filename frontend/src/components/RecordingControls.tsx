@@ -342,7 +342,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   return (
     <TooltipProvider>
       <div className="flex flex-col space-y-2">
-        <div className="flex items-center space-x-2 bg-white rounded-full shadow-lg px-4 py-2">
+        <div className="flex items-center space-x-2 bg-card rounded-full shadow-lg px-4 py-2">
           {isProcessing && !isParentProcessing ? (
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
@@ -359,14 +359,14 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                     <Mic size={16} />
                   </button>
 
-                  <div className="w-px h-6 bg-gray-200 mx-1" />
+                  <div className="w-px h-6 bg-border mx-1" />
 
                   <div className="flex items-center space-x-1 mx-2">
                     <div className="text-sm text-gray-600 min-w-[40px]">
                       {formatTime(currentTime)}
                     </div>
                     <div
-                      className="relative w-24 h-1 bg-gray-200 rounded-full"
+                      className="relative w-24 h-1 bg-secondary rounded-full"
                     >
                       <div
                         className="absolute h-full bg-blue-500 rounded-full"
@@ -428,8 +428,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             }}
                             disabled={isPausing || isResuming || isStopping}
                             className={`w-10 h-10 flex items-center justify-center ${isPausing || isResuming || isStopping
-                              ? 'bg-gray-200 border-2 border-gray-300 text-gray-400'
-                              : 'bg-white border-2 border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
+                              ? 'bg-muted border-2 border-border text-muted-foreground'
+                              : 'bg-card border-2 border-border text-foreground hover:border-muted-foreground hover:bg-muted'
                               } rounded-full transition-colors relative`}
                           >
                             {isPaused ? <Play size={16} /> : <Pause size={16} />}

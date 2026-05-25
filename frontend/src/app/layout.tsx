@@ -25,6 +25,7 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ImportAudioDialog, ImportDropOverlay } from '@/components/ImportAudio'
 import { ImportDialogProvider } from '@/contexts/ImportDialogContext'
 import { isAudioExtension, getAudioFormatsDisplayList } from '@/constants/audioFormats'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 
 
 const sourceSans3 = Source_Sans_3({
@@ -63,7 +64,34 @@ function ConditionalImportDialog({
 
 // export { metadata } from './metadata'
 
-export default function RootLayout({
+// Evaluated once when this module loads on the client. Safe because the root
+// layout has BAILOUT_TO_CLIENT_SIDE_RENDERING — there is no SSR to mismatch.
+const IS_OVERLAY =
+  typeof window !== 'undefined' &&
+  (window.location.pathname === '/overlay' ||
+    window.location.pathname === '/overlay.html' ||
+    window.location.pathname.endsWith('/overlay.html'))
+
+// Minimal layout for the overlay window — no providers, no sidebar.
+function OverlayLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" style={{ background: 'transparent' }}>
+      <head>
+        {/* Applied before any CSS/JS to prevent white flash on window open */}
+        <style>{`html, body { background: transparent !important; margin: 0; padding: 0; }`}</style>
+      </head>
+      <body
+        className={`${sourceSans3.variable} font-sans`}
+        style={{ background: 'transparent', margin: 0, overflow: 'hidden' }}
+      >
+        {children}
+      </body>
+    </html>
+  )
+}
+
+// Full app layout with all providers and sidebar.
+function MainLayout({
   children,
 }: {
   children: React.ReactNode
@@ -88,6 +116,19 @@ export default function RootLayout({
           setShowOnboarding(true)
         } else {
           console.log('[Layout] Onboarding completed, showing main app')
+          // For users who finished onboarding before notification permission was added:
+          // trigger the request now if the system hasn't been asked yet.
+          invoke<string>('get_macos_notification_status')
+            .then((notifStatus) => {
+              console.log('[Layout] macOS notification status:', notifStatus)
+              if (notifStatus === 'not_determined') {
+                console.log('[Layout] notification status not_determined — requesting now')
+                invoke<boolean>('request_macos_notification_permission')
+                  .then((granted) => console.log('[Layout] notification request result:', granted))
+                  .catch((err) => console.error('[Layout] notification request failed:', err))
+              }
+            })
+            .catch((err) => console.error('[Layout] failed to get notification status:', err))
         }
       })
       .catch((error) => {
@@ -158,7 +199,7 @@ export default function RootLayout({
 
   // Listen for drag-drop events
   useEffect(() => {
-    if (showOnboarding) return; // Don't handle drops during onboarding
+    if (showOnboarding) return;
 
     const unlisteners: UnlistenFn[] = [];
     const cleanedUpRef = { current: false };
@@ -233,6 +274,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sourceSans3.variable} font-sans antialiased`}>
+        <ThemeProvider>
         <AnalyticsProvider>
           <RecordingStateProvider>
             <TranscriptProvider>
@@ -277,7 +319,15 @@ export default function RootLayout({
         </AnalyticsProvider>
 
         <Toaster position="bottom-center" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   )
+}
+
+// Hook-free root — picks the right layout based on window.location.
+// RootLayout itself has no hooks, so there is no Rules-of-Hooks issue.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  if (IS_OVERLAY) return <OverlayLayout>{children}</OverlayLayout>
+  return <MainLayout>{children}</MainLayout>
 }

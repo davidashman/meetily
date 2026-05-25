@@ -234,8 +234,8 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
               </div>
 
               {updateInfo.body && (
-                <div className="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                <div className="bg-muted/50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <p className="text-sm text-foreground whitespace-pre-wrap">
                     {updateInfo.body}
                   </p>
                 </div>
@@ -246,7 +246,7 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
           {isDownloading && progress && (
             <div className="space-y-2">
               <div className="relative">
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-secondary rounded-full h-3">
                   <div
                     className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${Math.min(progress.percentage, 100)}%` }}

@@ -264,6 +264,112 @@ pub async fn test_notification_with_auto_consent(
     }
 }
 
+/// Get the actual macOS system notification authorization status.
+/// Returns "authorized", "denied", "not_determined", or "provisional".
+#[tauri::command]
+pub async fn get_macos_notification_status() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        Ok(crate::notifications::macos_un::get_authorization_status().await.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok("authorized".to_string())
+    }
+}
+
+/// Trigger the macOS notification permission dialog via UNUserNotificationCenter,
+/// running on the main thread (required by macOS). Returns true if granted.
+/// This is the real permission request — tauri-plugin-notification's desktop
+/// implementation just stubs it out and always returns Granted.
+#[tauri::command]
+pub async fn request_macos_notification_permission(
+    app: tauri::AppHandle<tauri::Wry>,
+) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::{Arc, Mutex};
+        use tokio::sync::oneshot;
+
+        log_info!("[macos-notif] request_macos_notification_permission invoked");
+
+        // Log current status BEFORE requesting — if already authorized/denied,
+        // requestAuthorizationWithOptions returns the cached value without showing a dialog.
+        let current_status = crate::notifications::macos_un::get_authorization_status().await;
+        log_info!("[macos-notif] current authorization status before request: {}", current_status);
+
+        // Log bundle identifier — a missing/wrong one is the most common reason
+        // UNUserNotificationCenter silently does nothing.
+        {
+            use objc2_foundation::NSBundle;
+            unsafe {
+                let b = NSBundle::mainBundle();
+                let id = b.bundleIdentifier().map(|s| s.to_string()).unwrap_or_else(|| "<nil>".into());
+                let path = b.bundlePath().to_string();
+                log_info!("[macos-notif] running bundle — id={} path={}", id, path);
+            }
+        }
+
+        let (tx, rx) = oneshot::channel::<bool>();
+        let tx = Arc::new(Mutex::new(Some(tx)));
+
+        app.run_on_main_thread(move || {
+            use block2::RcBlock;
+            use objc2::runtime::Bool;
+            use objc2_foundation::NSError;
+            use objc2_user_notifications::{UNAuthorizationOptions, UNUserNotificationCenter};
+
+            log_info!("[macos-notif] on main thread — about to call requestAuthorizationWithOptions");
+
+            let tx = tx.clone();
+            unsafe {
+                let center = UNUserNotificationCenter::currentNotificationCenter();
+                let opts = UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound;
+                let handler = RcBlock::new(move |granted: Bool, err: *mut NSError| {
+                    if !err.is_null() {
+                        let desc = unsafe { (*err).localizedDescription().to_string() };
+                        log_error!("[macos-notif] permission completion error: {}", desc);
+                    } else {
+                        log_info!("[macos-notif] permission completion — granted: {}", granted.as_bool());
+                    }
+                    if let Ok(mut guard) = tx.lock() {
+                        if let Some(sender) = guard.take() {
+                            let _ = sender.send(granted.as_bool());
+                        }
+                    }
+                });
+                center.requestAuthorizationWithOptions_completionHandler(opts, &handler);
+                log_info!("[macos-notif] requestAuthorizationWithOptions call returned (handler may still fire async)");
+            }
+        }).map_err(|e| format!("run_on_main_thread failed: {:?}", e))?;
+
+        // Timeout so a hung completion handler doesn't deadlock the caller.
+        match tokio::time::timeout(std::time::Duration::from_secs(10), rx).await {
+            Ok(Ok(granted)) => Ok(granted),
+            Ok(Err(e)) => Err(format!("channel error: {}", e)),
+            Err(_) => {
+                log_error!("[macos-notif] permission request timed out after 10s — completion handler never fired");
+                Err("timeout waiting for permission dialog (handler never fired)".to_string())
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(true)
+    }
+}
+
+/// Open System Settings → Notifications on macOS so the user can grant permission.
+#[tauri::command]
+pub fn open_notification_system_settings() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.notifications")
+            .spawn();
+    }
+}
+
 /// Get notification system statistics
 #[tauri::command]
 pub async fn get_notification_stats(

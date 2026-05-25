@@ -4,6 +4,8 @@ pub mod system;
 pub mod settings;
 pub mod commands;
 pub mod manager;
+#[cfg(target_os = "macos")]
+pub mod macos_un;
 
 // Re-export main types for easy access
 pub use types::{
@@ -24,4 +26,6 @@ pub use commands::{
     show_test_notification,
     is_dnd_active,
     get_system_dnd_status,
+    get_macos_notification_status,
+    open_notification_system_settings,
 };

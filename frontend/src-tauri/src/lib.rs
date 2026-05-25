@@ -38,12 +38,14 @@ pub(crate) use perf_trace;
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod automation;
 pub mod config;
 pub mod console_utils;
 pub mod database;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
+pub mod overlay;
 pub mod openai;
 pub mod anthropic;
 pub mod groq;
@@ -114,23 +116,8 @@ async fn start_recording<R: Runtime>(
 
             log_info!("Recording started successfully");
 
-            // Show recording started notification through NotificationManager
-            // This respects user's notification preferences
-            let notification_manager_state = app.state::<NotificationManagerState<R>>();
-            if let Err(e) = notifications::commands::show_recording_started_notification(
-                &app,
-                &notification_manager_state,
-                meeting_name.clone(),
-            )
-            .await
-            {
-                log_error!(
-                    "Failed to show recording started notification: {}",
-                    e
-                );
-            } else {
-                log_info!("Successfully showed recording started notification");
-            }
+            // Show overlay in recording mode (creates it if not already open from auto-detect).
+            overlay::show_recording(&app, meeting_name.as_deref().unwrap_or("Recording"));
 
             Ok(())
         }
@@ -163,6 +150,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
         Ok(_) => {
             RECORDING_FLAG.store(false, Ordering::SeqCst);
             tray::update_tray_menu(&app);
+            overlay::close(&app);
 
             // Create the save directory if it doesn't exist
             if let Some(parent) = std::path::Path::new(&args.save_path).parent() {
@@ -387,8 +375,18 @@ pub fn get_language_preference_internal() -> Option<String> {
     LANGUAGE_PREFERENCE.lock().ok().map(|lang| lang.clone())
 }
 
+#[cfg(target_os = "macos")]
+fn is_system_dark_mode() -> bool {
+    use std::process::Command;
+    Command::new("defaults")
+        .args(["read", "-g", "AppleInterfaceStyle"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "Dark")
+        .unwrap_or(false)
+}
+
 pub fn run() {
-    log::set_max_level(log::LevelFilter::Info);
+    log::set_max_level(log::LevelFilter::Debug);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -408,6 +406,19 @@ pub fn run() {
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
+            }
+
+            // Set window background to match bg-background (dark mode: #212121, light mode: #ffffff)
+            #[cfg(target_os = "macos")]
+            if let Some(window) = _app.get_webview_window("main") {
+                let color = if is_system_dark_mode() {
+                    tauri::window::Color(33, 33, 33, 255)
+                } else {
+                    tauri::window::Color(255, 255, 255, 255)
+                };
+                if let Err(e) = window.set_background_color(Some(color)) {
+                    log::warn!("Failed to set window background color: {}", e);
+                }
             }
 
             // Initialize notification system with proper defaults
@@ -493,6 +504,10 @@ pub fn run() {
             } else {
                 log::warn!("Failed to resolve resource directory for templates");
             }
+
+            // Start mic-monitor: auto-starts/stops recording when another app
+            // captures the microphone (macOS only, no-op on other platforms).
+            automation::start(_app.handle());
 
             Ok(())
         })
@@ -631,23 +646,23 @@ pub fn run() {
             api::api_get_custom_openai_config,
             api::api_test_custom_openai_connection,
             // Summary commands
-            summary::api_process_transcript,
-            summary::api_get_summary,
-            summary::api_save_meeting_summary,
-            summary::api_cancel_summary,
+            summary::commands::api_process_transcript,
+            summary::commands::api_get_summary,
+            summary::commands::api_save_meeting_summary,
+            summary::commands::api_cancel_summary,
             // Template commands
-            summary::api_list_templates,
-            summary::api_get_template_details,
-            summary::api_validate_template,
+            summary::template_commands::api_list_templates,
+            summary::template_commands::api_get_template_details,
+            summary::template_commands::api_validate_template,
             // Built-in AI commands
-            summary::summary_engine::builtin_ai_list_models,
-            summary::summary_engine::builtin_ai_get_model_info,
-            summary::summary_engine::builtin_ai_download_model,
-            summary::summary_engine::builtin_ai_cancel_download,
-            summary::summary_engine::builtin_ai_delete_model,
-            summary::summary_engine::builtin_ai_is_model_ready,
-            summary::summary_engine::builtin_ai_get_available_summary_model,
-            summary::summary_engine::builtin_ai_get_recommended_model,
+            summary::summary_engine::commands::builtin_ai_list_models,
+            summary::summary_engine::commands::builtin_ai_get_model_info,
+            summary::summary_engine::commands::builtin_ai_download_model,
+            summary::summary_engine::commands::builtin_ai_cancel_download,
+            summary::summary_engine::commands::builtin_ai_delete_model,
+            summary::summary_engine::commands::builtin_ai_is_model_ready,
+            summary::summary_engine::commands::builtin_ai_get_available_summary_model,
+            summary::summary_engine::commands::builtin_ai_get_recommended_model,
             openrouter::get_openrouter_models,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,
@@ -675,6 +690,9 @@ pub fn run() {
             notifications::commands::initialize_notification_manager_manual,
             notifications::commands::test_notification_with_auto_consent,
             notifications::commands::get_notification_stats,
+            notifications::commands::get_macos_notification_status,
+            notifications::commands::open_notification_system_settings,
+            notifications::commands::request_macos_notification_permission,
             // System audio capture commands
             audio::system_audio_commands::start_system_audio_capture_command,
             audio::system_audio_commands::list_system_audio_devices_command,
@@ -716,6 +734,10 @@ pub fn run() {
             audio::import::start_import_audio_command,
             audio::import::cancel_import_command,
             audio::import::is_import_in_progress_command,
+            // Overlay window commands
+            overlay::overlay_record,
+            overlay::overlay_decline,
+            overlay::overlay_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

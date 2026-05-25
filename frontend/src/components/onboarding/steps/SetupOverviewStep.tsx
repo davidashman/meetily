@@ -69,7 +69,7 @@ export function SetupOverviewStep() {
     >
       <div className="flex flex-col items-center space-y-10">
         {/* Steps Card */}
-        <div className="w-full max-w-md bg-white rounded-lg border border-gray-200 p-4">
+        <div className="w-full max-w-md bg-card rounded-lg border border-border p-4">
           <div className="space-y-4">
             {steps.map((step, idx) => {
               return (

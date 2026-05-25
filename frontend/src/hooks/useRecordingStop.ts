@@ -113,6 +113,28 @@ export function useRecordingStop(
     };
   }, [router]);
 
+  // Listen for auto-stop events (mic released by external app detection)
+  useEffect(() => {
+    let unlistenFn: (() => void) | undefined;
+
+    const setupAutoStopListener = async () => {
+      try {
+        unlistenFn = await listen('recording-auto-stopped', async () => {
+          console.log('[auto-detect] received recording-auto-stopped, triggering post-stop processing');
+          await handleRecordingStopRef.current(true);
+        });
+      } catch (error) {
+        console.error('Failed to setup recording-auto-stopped listener:', error);
+      }
+    };
+
+    setupAutoStopListener();
+
+    return () => {
+      if (unlistenFn) unlistenFn();
+    };
+  }, []);
+
   // Main recording stop handler
   const handleRecordingStop = useCallback(async (isCallApi: boolean) => {
     if (recordingStoppedDataRef.current) {

@@ -159,6 +159,11 @@ tauri-plugin-process = "2.3.0"
 tauri = { version = "2.6.2", features = ["protocol-asset", "macos-private-api", "tray-icon"] }
 once_cell = "1.17.1"
 objc = "0.2.7"
+objc2 = "0.6.4"
+objc2-foundation = { version = "0.3.2", features = ["NSArray", "NSSet", "NSString", "NSDictionary", "NSError"] }
+objc2-app-kit = { version = "0.3.2", features = ["NSRunningApplication"] }
+objc2-user-notifications = { version = "0.3.2" }
+block2 = "0.6.2"
 tauri-plugin-log = { version = "2.6.0", features = ["colored"] }
 anyhow = "1.0"
 time = { version = "0.3", features = ["formatting"] }

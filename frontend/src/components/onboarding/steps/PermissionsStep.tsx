@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Mic, Volume2 } from 'lucide-react';
+import { Bell, Mic, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { PermissionRow } from '../shared';
@@ -10,88 +10,60 @@ export function PermissionsStep() {
   const { setPermissionStatus, setPermissionsSkipped, permissions, completeOnboarding } = useOnboarding();
   const [isPending, setIsPending] = useState(false);
 
-  // Check permissions - only logs current state, doesn't auto-authorize
-  // Actual permission checks are done via explicit user actions (clicking Enable)
-  const checkPermissions = useCallback(async () => {
-    console.log('[PermissionsStep] Current permission states:');
-    console.log(`  - Microphone: ${permissions.microphone}`);
-    console.log(`  - System Audio: ${permissions.systemAudio}`);
-    // Don't auto-set permissions based on device availability
-    // Permissions should only be set after explicit user action via Enable button
-  }, [permissions.microphone, permissions.systemAudio]);
-
-  // Check permissions on mount
-  useEffect(() => {
-    checkPermissions();
-  }, [checkPermissions]);
-
-  // Request microphone permission
   const handleMicrophoneAction = async () => {
     if (permissions.microphone === 'denied') {
-      // Try to open system settings
-      try {
-        await invoke('open_system_settings');
-      } catch {
+      try { await invoke('open_system_settings'); } catch {
         alert('Please enable microphone access in System Preferences > Security & Privacy > Microphone');
       }
       return;
     }
-
     setIsPending(true);
     try {
-      console.log('[PermissionsStep] Triggering microphone permission...');
       const granted = await invoke<boolean>('trigger_microphone_permission');
-      console.log('[PermissionsStep] Microphone permission result:', granted);
-
-      if (granted) {
-        setPermissionStatus('microphone', 'authorized');
-      } else {
-        // Permission was denied or dialog was dismissed
-        setPermissionStatus('microphone', 'denied');
-      }
-    } catch (err) {
-      console.error('[PermissionsStep] Failed to request microphone permission:', err);
+      setPermissionStatus('microphone', granted ? 'authorized' : 'denied');
+    } catch {
       setPermissionStatus('microphone', 'denied');
     } finally {
       setIsPending(false);
     }
   };
 
-  // Request system audio permission
   const handleSystemAudioAction = async () => {
     if (permissions.systemAudio === 'denied') {
-      // Try to open system settings
-      try {
-        await invoke('open_system_settings');
-      } catch {
+      try { await invoke('open_system_settings'); } catch {
         alert('Please enable Audio Capture in System Settings → Privacy & Security → Audio Capture');
       }
       return;
     }
-
     setIsPending(true);
     try {
-      console.log('[PermissionsStep] Triggering Audio Capture permission...');
-      // Backend creates Core Audio tap, captures audio, and verifies it's not silence
-      // Returns true if permission granted and audio verified, false if denied (silence)
       const granted = await invoke<boolean>('trigger_system_audio_permission_command');
-      console.log('[PermissionsStep] System audio permission result:', granted);
-
-      if (granted) {
-        setPermissionStatus('systemAudio', 'authorized');
-        console.log('[PermissionsStep] Audio Capture permission verified - audio is not silence');
-      } else {
-        // Permission was denied (audio is silence)
-        setPermissionStatus('systemAudio', 'denied');
-        console.log('[PermissionsStep] Audio Capture permission denied - audio is silence');
-      }
-    } catch (err) {
-      console.error('[PermissionsStep] Failed to request system audio permission:', err);
+      setPermissionStatus('systemAudio', granted ? 'authorized' : 'denied');
+    } catch {
       setPermissionStatus('systemAudio', 'denied');
     } finally {
       setIsPending(false);
     }
   };
+
+  const handleNotificationsAction = useCallback(async () => {
+    if (permissions.notifications === 'denied') {
+      invoke('open_notification_system_settings').catch(() => {});
+      return;
+    }
+    setIsPending(true);
+    try {
+      // Use our own command — tauri-plugin-notification's requestPermission() on
+      // desktop is a stub that always returns "granted" without showing any dialog.
+      const granted = await invoke<boolean>('request_macos_notification_permission');
+      setPermissionStatus('notifications', granted ? 'authorized' : 'denied');
+    } catch (err) {
+      console.error('[PermissionsStep] notification permission error:', err);
+      setPermissionStatus('notifications', 'denied');
+    } finally {
+      setIsPending(false);
+    }
+  }, [permissions.notifications, setPermissionStatus]);
 
   const handleFinish = async () => {
     try {
@@ -121,9 +93,7 @@ export function PermissionsStep() {
       canGoNext={allPermissionsGranted}
     >
       <div className="max-w-lg mx-auto space-y-6">
-        {/* Permission Rows */}
         <div className="space-y-4">
-          {/* Microphone */}
           <PermissionRow
             icon={<Mic className="w-5 h-5" />}
             title="Microphone"
@@ -133,7 +103,6 @@ export function PermissionsStep() {
             onAction={handleMicrophoneAction}
           />
 
-          {/* System Audio */}
           <PermissionRow
             icon={<Volume2 className="w-5 h-5" />}
             title="System Audio"
@@ -142,9 +111,17 @@ export function PermissionsStep() {
             isPending={isPending}
             onAction={handleSystemAudioAction}
           />
+
+          <PermissionRow
+            icon={<Bell className="w-5 h-5" />}
+            title="Notifications"
+            description="Alerts you when another app grabs the mic so you can start recording"
+            status={permissions.notifications}
+            isPending={isPending}
+            onAction={handleNotificationsAction}
+          />
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-col gap-3 pt-4">
           <Button onClick={handleFinish} disabled={!allPermissionsGranted} className="w-full h-11">
             Finish Setup
