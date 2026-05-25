@@ -17,7 +17,9 @@
                 "height": 700,
                 "resizable": true,
                 "fullscreen": false,
-                "decorations": true
+                "decorations": true,
+                "titleBarStyle": "Overlay",
+                "hiddenTitle": true
             }
         ],
         "macOSPrivateApi": true,
@@ -61,9 +63,6 @@
                         "core:tray:default",
                         "core:window:allow-set-title",
                         "store:default",
-                        "notification:default",
-                        "notification:allow-is-permission-granted",
-                        "notification:allow-request-permission",
                         "updater:default",
                         "process:default",
                         {

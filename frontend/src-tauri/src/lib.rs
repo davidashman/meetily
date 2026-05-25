@@ -42,12 +42,10 @@ pub mod automation;
 pub mod config;
 pub mod console_utils;
 pub mod database;
-pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
 pub mod overlay;
 pub mod openai;
-pub mod anthropic;
 pub mod groq;
 pub mod openrouter;
 pub mod parakeet_engine;
@@ -59,10 +57,8 @@ pub mod whisper_engine;
 
 use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
 use log::{error as log_error, info as log_info};
-use notifications::commands::NotificationManagerState;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime};
-use tokio::sync::RwLock;
 
 static RECORDING_FLAG: AtomicBool = AtomicBool::new(false);
 
@@ -162,23 +158,6 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
                         return Err(err_msg);
                     }
                 }
-            }
-
-            // Show recording stopped notification through NotificationManager
-            // This respects user's notification preferences
-            let notification_manager_state = app.state::<NotificationManagerState<R>>();
-            if let Err(e) = notifications::commands::show_recording_stopped_notification(
-                &app,
-                &notification_manager_state,
-            )
-            .await
-            {
-                log_error!(
-                    "Failed to show recording stopped notification: {}",
-                    e
-                );
-            } else {
-                log_info!("Successfully showed recording stopped notification");
             }
 
             Ok(())
@@ -301,9 +280,6 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
     log_info!("🚀 CALLED start_recording_with_devices_and_meeting - Mic: {:?}, System: {:?}, Meeting: {:?}",
              mic_device_name, system_device_name, meeting_name);
 
-    // Clone meeting_name for notification use later
-    let meeting_name_for_notification = meeting_name.clone();
-
     // Call the recording module functions that support meeting names
     let recording_result = match (mic_device_name.clone(), system_device_name.clone()) {
         (None, None) => {
@@ -334,23 +310,6 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
     match recording_result {
         Ok(_) => {
             log_info!("Recording started successfully via tauri command");
-
-            // Show recording started notification through NotificationManager
-            // This respects user's notification preferences
-            let notification_manager_state = app.state::<NotificationManagerState<R>>();
-            if let Err(e) = notifications::commands::show_recording_started_notification(
-                &app,
-                &notification_manager_state,
-                meeting_name_for_notification.clone(),
-            )
-            .await
-            {
-                log_error!(
-                    "Failed to show recording started notification: {}",
-                    e
-                );
-            }
-
             Ok(())
         }
         Err(e) => {
@@ -389,15 +348,11 @@ pub fn run() {
     log::set_max_level(log::LevelFilter::Debug);
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
-        .manage(Arc::new(RwLock::new(
-            None::<notifications::manager::NotificationManager<tauri::Wry>>,
-        )) as NotificationManagerState<tauri::Wry>)
         .manage(audio::init_system_audio_state())
         .manage(summary::summary_engine::ModelManagerState(Arc::new(tokio::sync::Mutex::new(None))))
         .setup(|_app| {
@@ -406,6 +361,50 @@ pub fn run() {
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {
                 log::error!("Failed to create system tray: {}", e);
+            }
+
+            // Build macOS application menu with Settings... (Cmd+,)
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{IconMenuItemBuilder, MenuBuilder, NativeIcon, SubmenuBuilder};
+                let h = _app.handle().clone();
+                let settings_item = IconMenuItemBuilder::with_id("app_settings", "Settings...")
+                    .accelerator("Cmd+,")
+                    .build(&h)?;
+                let import_item = IconMenuItemBuilder::with_id("import_audio", "Import Audio...")
+                    .native_icon(NativeIcon::Share)
+                    .build(&h)?;
+                let app_submenu = SubmenuBuilder::new(&h, "Meetily")
+                    .about(None)
+                    .separator()
+                    .item(&settings_item)
+                    .item(&import_item)
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()?;
+                let menu = MenuBuilder::new(&h).item(&app_submenu).build()?;
+                _app.set_menu(menu)?;
+                // Set the Settings... icon via SF Symbol so it adapts to dark/light mode
+                unsafe { set_settings_menu_icon_sf_symbol() };
+                _app.on_menu_event(|app, event| {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                        match event.id().as_ref() {
+                            "app_settings" => {
+                                let _ = window.eval("window.location.assign('/settings')");
+                            }
+                            "import_audio" => {
+                                let _ = window.eval("window.openImportDialog && window.openImportDialog()");
+                            }
+                            _ => {}
+                        }
+                    }
+                });
             }
 
             // Set window background to match bg-background (dark mode: #212121, light mode: #ffffff)
@@ -420,32 +419,6 @@ pub fn run() {
                     log::warn!("Failed to set window background color: {}", e);
                 }
             }
-
-            // Initialize notification system with proper defaults
-            log::info!("Initializing notification system...");
-            let app_for_notif = _app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let notif_state = app_for_notif.state::<NotificationManagerState<tauri::Wry>>();
-                match notifications::commands::initialize_notification_manager(app_for_notif.clone()).await {
-                    Ok(manager) => {
-                        // Set default consent and permissions on first launch
-                        if let Err(e) = manager.set_consent(true).await {
-                            log::error!("Failed to set initial consent: {}", e);
-                        }
-                        if let Err(e) = manager.request_permission().await {
-                            log::error!("Failed to request initial permission: {}", e);
-                        }
-
-                        // Store the initialized manager
-                        let mut state_lock = notif_state.write().await;
-                        *state_lock = Some(manager);
-                        log::info!("Notification system initialized with default permissions");
-                    }
-                    Err(e) => {
-                        log::error!("Failed to initialize notification manager: {}", e);
-                    }
-                }
-            });
 
             // Set models directory to use app_data_dir (unified storage location)
             whisper_engine::commands::set_models_directory(&_app.handle());
@@ -616,7 +589,6 @@ pub fn run() {
             ollama::delete_ollama_model,
             ollama::get_ollama_model_context,
             openai::openai::get_openai_models,
-            anthropic::anthropic::get_anthropic_models,
             groq::groq::get_groq_models,
             api::api_get_meetings,
             api::api_search_transcripts,
@@ -675,24 +647,6 @@ pub fn run() {
             audio::recording_preferences::get_audio_backend_info,
             // Language preference commands
             set_language_preference,
-            // Notification system commands
-            notifications::commands::get_notification_settings,
-            notifications::commands::set_notification_settings,
-            notifications::commands::request_notification_permission,
-            notifications::commands::show_notification,
-            notifications::commands::show_test_notification,
-            notifications::commands::is_dnd_active,
-            notifications::commands::get_system_dnd_status,
-            notifications::commands::set_manual_dnd,
-            notifications::commands::set_notification_consent,
-            notifications::commands::clear_notifications,
-            notifications::commands::is_notification_system_ready,
-            notifications::commands::initialize_notification_manager_manual,
-            notifications::commands::test_notification_with_auto_consent,
-            notifications::commands::get_notification_stats,
-            notifications::commands::get_macos_notification_status,
-            notifications::commands::open_notification_system_settings,
-            notifications::commands::request_macos_notification_permission,
             // System audio capture commands
             audio::system_audio_commands::start_system_audio_capture_command,
             audio::system_audio_commands::list_system_audio_devices_command,
@@ -766,4 +720,48 @@ pub fn run() {
                 log::info!("Application cleanup complete");
             }
         });
+}
+
+/// Sets the "Settings..." menu item icon to the SF Symbol "gear" with isTemplate=YES,
+/// so macOS automatically colorizes it for both light and dark mode.
+#[cfg(target_os = "macos")]
+unsafe fn set_settings_menu_icon_sf_symbol() {
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    use objc2_foundation::NSString;
+
+    let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+    if ns_app.is_null() {
+        return;
+    }
+    let main_menu: *mut AnyObject = msg_send![ns_app, mainMenu];
+    if main_menu.is_null() {
+        return;
+    }
+    // Index 0 is the app (Meetily) menu
+    let app_item: *mut AnyObject = msg_send![main_menu, itemAtIndex: 0isize];
+    if app_item.is_null() {
+        return;
+    }
+    let submenu: *mut AnyObject = msg_send![app_item, submenu];
+    if submenu.is_null() {
+        return;
+    }
+    let title = NSString::from_str("Settings...");
+    let settings_item: *mut AnyObject = msg_send![submenu, itemWithTitle: &*title];
+    if settings_item.is_null() {
+        return;
+    }
+    let sym_name = NSString::from_str("gear");
+    let image: *mut AnyObject = msg_send![
+        class!(NSImage),
+        imageWithSystemSymbolName: &*sym_name
+        accessibilityDescription: std::ptr::null::<AnyObject>()
+    ];
+    if image.is_null() {
+        return;
+    }
+    // Template images are tinted by the system to match the current appearance
+    let _: () = msg_send![image, setTemplate: true];
+    let _: () = msg_send![settings_item, setImage: image];
 }

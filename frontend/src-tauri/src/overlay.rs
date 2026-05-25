@@ -153,6 +153,7 @@ fn build_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>, url: &str, x: f64,
         .always_on_top(true)
         .resizable(false)
         .focused(false)
+        .accept_first_mouse(true)
         .skip_taskbar(true)
         .transparent(true)
         .build()

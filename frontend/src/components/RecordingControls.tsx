@@ -342,13 +342,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   return (
     <TooltipProvider>
       <div className="flex flex-col space-y-2">
-        <div className="flex items-center space-x-2 bg-card rounded-full shadow-lg px-4 py-2">
-          {isProcessing && !isParentProcessing ? (
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
-              <span className="text-sm text-gray-600">Processing recording...</span>
-            </div>
-          ) : (
+        <div className="flex items-center space-x-2 bg-background rounded-full shadow-lg px-4 py-2">
             <>
               {showPlayback ? (
                 <>
@@ -456,7 +450,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             className={`w-10 h-10 flex items-center justify-center ${isStopping || isPausing || isResuming ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
                               } rounded-full text-white transition-colors relative`}
                           >
-                            <Square size={16} />
+                            <Square size={16} fill="currentColor" />
                             {isStopping && (
                               <div className="absolute -top-8 text-gray-600 font-medium text-xs">
                                 Stopping...
@@ -487,7 +481,6 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                 </>
               )}
             </>
-          )}
         </div>
 
         {/* Show validation status only */}

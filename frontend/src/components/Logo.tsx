@@ -1,10 +1,5 @@
 import React from "react";
 
-interface LogoProps {
-    isCollapsed: boolean;
-    toggleCollapse: () => void;
-}
-
 const WaveformMark = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-blue-500">
     <rect x="0"  y="9"  width="3" height="6"  rx="1.5" fill="currentColor"/>
@@ -15,16 +10,12 @@ const WaveformMark = () => (
   </svg>
 );
 
-const Logo = React.forwardRef<HTMLButtonElement, LogoProps>(({ isCollapsed, toggleCollapse }, ref) => {
-  return isCollapsed ? (
-    <button ref={ref} onClick={toggleCollapse} className="flex items-center justify-center mb-2 cursor-pointer bg-transparent border-none p-0 hover:opacity-75 transition-opacity">
-      <WaveformMark />
-    </button>
-  ) : (
-    <button ref={ref} onClick={toggleCollapse} className="flex items-center gap-2 mb-2 cursor-pointer bg-transparent border-none p-0 hover:opacity-75 transition-opacity w-full">
+const Logo = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => {
+  return (
+    <div ref={ref} {...props} className="flex items-center gap-2 mb-2">
       <WaveformMark />
       <span className="text-[15px] font-semibold tracking-[-0.2px] text-foreground">meetily</span>
-    </button>
+    </div>
   );
 });
 

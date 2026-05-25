@@ -21,27 +21,6 @@ export interface StorageLocations {
   recordings: string;
 }
 
-export interface NotificationSettings {
-  recording_notifications: boolean;
-  time_based_reminders: boolean;
-  meeting_reminders: boolean;
-  respect_do_not_disturb: boolean;
-  notification_sound: boolean;
-  system_permission_granted: boolean;
-  consent_given: boolean;
-  manual_dnd_mode: boolean;
-  notification_preferences: {
-    show_recording_started: boolean;
-    show_recording_stopped: boolean;
-    show_recording_paused: boolean;
-    show_recording_resumed: boolean;
-    show_transcription_complete: boolean;
-    show_meeting_reminders: boolean;
-    show_system_errors: boolean;
-    meeting_reminder_minutes: number[];
-  };
-}
-
 interface ConfigContextType {
   // Model configuration
   modelConfig: ModelConfig;
@@ -86,11 +65,9 @@ interface ConfigContextType {
   updateProviderApiKey: (provider: string, apiKey: string | null) => void;
 
   // Preference settings (lazy loaded)
-  notificationSettings: NotificationSettings | null;
   storageLocations: StorageLocations | null;
   isLoadingPreferences: boolean;
   loadPreferences: () => Promise<void>;
-  updateNotificationSettings: (settings: NotificationSettings) => Promise<void>;
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -169,7 +146,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   });
 
   // Preference settings state (lazy loaded)
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
   const [storageLocations, setStorageLocations] = useState<StorageLocations | null>(null);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(false);
   const preferencesLoadedRef = useRef(false);
@@ -425,17 +401,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     isLoadingRef.current = true;
     setIsLoadingPreferences(true);
     try {
-      // Load notification settings from backend
-      let settings: NotificationSettings | null = null;
-      try {
-        settings = await invoke<NotificationSettings>('get_notification_settings');
-        setNotificationSettings(settings);
-      } catch (notifError) {
-        console.error('[ConfigContext] Failed to load notification settings:', notifError);
-        // Use default values if notification settings fail to load
-        setNotificationSettings(null);
-      }
-
       // Load storage locations
       const [dbDir, modelsDir, recordingsDir] = await Promise.all([
         invoke<string>('get_database_directory'),
@@ -456,17 +421,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     } finally {
       isLoadingRef.current = false;
       setIsLoadingPreferences(false);
-    }
-  }, []);
-
-  // Update notification settings
-  const updateNotificationSettings = useCallback(async (settings: NotificationSettings) => {
-    try {
-      await invoke('set_notification_settings', { settings });
-      setNotificationSettings(settings);
-    } catch (error) {
-      console.error('[ConfigContext] Failed to update notification settings:', error);
-      throw error; // Re-throw so component can handle error
     }
   }, []);
 
@@ -502,11 +456,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     models,
     modelOptions,
     error,
-    notificationSettings,
     storageLocations,
     isLoadingPreferences,
     loadPreferences,
-    updateNotificationSettings,
   }), [
     modelConfig,
     isAutoSummary,
@@ -524,11 +476,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     models,
     modelOptions,
     error,
-    notificationSettings,
     storageLocations,
     isLoadingPreferences,
     loadPreferences,
-    updateNotificationSettings,
   ]);
 
   return (

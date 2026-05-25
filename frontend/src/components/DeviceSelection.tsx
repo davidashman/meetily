@@ -263,8 +263,8 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
         {/* Microphone Selection */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Mic className="h-4 w-4 text-gray-600" />
-            <Label htmlFor="mic-selection" className="text-sm font-medium text-gray-700">
+            <Mic className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="mic-selection" className="text-sm font-medium text-foreground">
               Microphone
             </Label>
           </div>
@@ -331,8 +331,8 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
         {/* System Audio Selection */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Speaker className="h-4 w-4 text-gray-600" />
-            <Label htmlFor="system-selection" className="text-sm font-medium text-gray-700">
+            <Speaker className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="system-selection" className="text-sm font-medium text-foreground">
               System Audio
             </Label>
           </div>

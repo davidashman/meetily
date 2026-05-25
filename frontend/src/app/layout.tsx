@@ -3,7 +3,7 @@
 import './globals.css'
 import { Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
-import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
+import { SidebarProvider, useSidebar } from '@/components/Sidebar/SidebarProvider'
 import MainContent from '@/components/MainContent'
 import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
@@ -90,6 +90,18 @@ function OverlayLayout({ children }: { children: React.ReactNode }) {
   )
 }
 
+function OffsetToaster() {
+  const { sidebarWidth } = useSidebar();
+  return (
+    <Toaster
+      position="bottom-center"
+      richColors
+      closeButton
+      style={{ left: `calc(50% + ${sidebarWidth / 2}px)` }}
+    />
+  );
+}
+
 // Full app layout with all providers and sidebar.
 function MainLayout({
   children,
@@ -116,19 +128,6 @@ function MainLayout({
           setShowOnboarding(true)
         } else {
           console.log('[Layout] Onboarding completed, showing main app')
-          // For users who finished onboarding before notification permission was added:
-          // trigger the request now if the system hasn't been asked yet.
-          invoke<string>('get_macos_notification_status')
-            .then((notifStatus) => {
-              console.log('[Layout] macOS notification status:', notifStatus)
-              if (notifStatus === 'not_determined') {
-                console.log('[Layout] notification status not_determined — requesting now')
-                invoke<boolean>('request_macos_notification_permission')
-                  .then((granted) => console.log('[Layout] notification request result:', granted))
-                  .catch((err) => console.error('[Layout] notification request failed:', err))
-              }
-            })
-            .catch((err) => console.error('[Layout] failed to get notification status:', err))
         }
       })
       .catch((error) => {
@@ -308,6 +307,7 @@ function MainLayout({
                             </ImportDialogProvider>
                           </RecordingPostProcessingProvider>
                         </TooltipProvider>
+                        <OffsetToaster />
                       </SidebarProvider>
                     </UpdateCheckProvider>
                   </OnboardingProvider>
@@ -317,8 +317,6 @@ function MainLayout({
             </TranscriptProvider>
           </RecordingStateProvider>
         </AnalyticsProvider>
-
-        <Toaster position="bottom-center" richColors closeButton />
         </ThemeProvider>
       </body>
     </html>

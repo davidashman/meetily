@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, File, Settings, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Sun, Moon } from 'lucide-react';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { File, Trash2, Plus, Pencil, SearchIcon, X } from 'lucide-react';
+import { RecordingControls } from '@/components/RecordingControls';
+import { useRouter } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
 import { ConfirmationModal } from '../ConfirmationModel/confirmation-modal';
@@ -11,12 +12,11 @@ import { SettingTabs } from '../SettingTabs';
 import { TranscriptModelProps } from '@/components/TranscriptSettings';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
 import { useImportDialog } from '@/contexts/ImportDialogContext';
 import { useConfig } from '@/contexts/ConfigContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useTranscripts } from '@/contexts/TranscriptContext';
 
 import {
   Dialog,
@@ -26,11 +26,7 @@ import {
 } from "@/components/ui/dialog"
 import { VisuallyHidden } from "@/components/ui/visually-hidden"
 
-import { MessageToast } from '../MessageToast';
 import Logo from '../Logo';
-import Info from '../Info';
-import { ComplianceNotification } from '../ComplianceNotification';
-import { Input } from '../ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../ui/input-group';
 
 interface SidebarItem {
@@ -42,28 +38,87 @@ interface SidebarItem {
 
 const Sidebar: React.FC = () => {
   const router = useRouter();
-  const pathname = usePathname();
   const {
     currentMeeting,
     setCurrentMeeting,
     sidebarItems,
-    isCollapsed,
-    toggleCollapse,
     handleRecordingToggle,
     searchTranscripts,
     searchResults,
     isSearching,
     meetings,
     setMeetings,
-    serverAddress
+    serverAddress,
+    sidebarWidth,
+    setSidebarWidth,
   } = useSidebar();
 
+  const MIN_WIDTH = 256;
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = sidebarWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = e.clientX - dragStartX.current;
+      const newWidth = Math.max(MIN_WIDTH, dragStartWidth.current + delta);
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [setSidebarWidth]);
+
   // Get recording state from RecordingStateContext (single source of truth)
-  const { isRecording } = useRecordingState();
+  const { isRecording, status, isProcessing } = useRecordingState();
   const { openImportDialog } = useImportDialog();
-  const { betaFeatures } = useConfig();
-  const { theme, toggle: toggleTheme } = useTheme();
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['meetings']));
+  const { selectedDevices } = useConfig();
+  const { meetingTitle } = useTranscripts();
+
+  // Expose openImportDialog for macOS menu handler
+  useEffect(() => {
+    (window as any).openImportDialog = () => openImportDialog();
+    return () => { delete (window as any).openImportDialog; };
+  }, [openImportDialog]);
+
+  const [barHeights, setBarHeights] = useState(['58%', '76%', '58%']);
+  useEffect(() => {
+    if (isRecording) {
+      const interval = setInterval(() => {
+        setBarHeights([
+          Math.random() * 20 + 10 + 'px',
+          Math.random() * 20 + 10 + 'px',
+          Math.random() * 20 + 10 + 'px',
+        ]);
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [isRecording]);
+
+  const isRecordingDisabled =
+    status === RecordingStatus.STOPPING ||
+    status === RecordingStatus.PROCESSING_TRANSCRIPTS ||
+    status === RecordingStatus.SAVING;
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelConfig>({
@@ -87,15 +142,6 @@ const Sidebar: React.FC = () => {
   });
   const [editingTitle, setEditingTitle] = useState<string>('');
 
-  // Ensure 'meetings' folder is always expanded
-  useEffect(() => {
-    if (!expandedFolders.has('meetings')) {
-      const newExpanded = new Set(expandedFolders);
-      newExpanded.add('meetings');
-      setExpandedFolders(newExpanded);
-    }
-  }, [expandedFolders]);
-
   // useEffect(() => {
   //   if (settingsSaveSuccess !== null) {
   //     const timer = setTimeout(() => {
@@ -103,7 +149,6 @@ const Sidebar: React.FC = () => {
   //     }, 3000);
   //   }
   // }, [settingsSaveSuccess]);
-
 
   const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; itemId: string | null }>({ isOpen: false, itemId: null });
 
@@ -242,20 +287,9 @@ const Sidebar: React.FC = () => {
   // Handle search input changes
   const handleSearchChange = useCallback(async (value: string) => {
     setSearchQuery(value);
-
-    // If search query is empty, just return to normal view
     if (!value.trim()) return;
-
-    // Search through transcripts
     await searchTranscripts(value);
-
-    // Make sure the meetings folder is expanded when searching
-    if (!expandedFolders.has('meetings')) {
-      const newExpanded = new Set(expandedFolders);
-      newExpanded.add('meetings');
-      setExpandedFolders(newExpanded);
-    }
-  }, [expandedFolders, searchTranscripts]);
+  }, [searchTranscripts]);
 
   // Combine search results with sidebar items
   const filteredSidebarItems = useMemo(() => {
@@ -317,7 +351,7 @@ const Sidebar: React.FC = () => {
         })
         .filter((item): item is SidebarItem => item !== undefined); // Type-safe filter
     }
-  }, [sidebarItems, searchQuery, searchResults, expandedFolders]);
+  }, [sidebarItems, searchQuery, searchResults]);
 
 
   const handleDelete = async (itemId: string) => {
@@ -423,17 +457,6 @@ const Sidebar: React.FC = () => {
     setEditingTitle('');
   };
 
-  const toggleFolder = (folderId: string) => {
-    // Normal toggle behavior for all folders
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
-    }
-    setExpandedFolders(newExpanded);
-  };
-
   // Expose setShowModelSettings to window for Rust tray to call
   useEffect(() => {
     (window as any).openSettings = () => {
@@ -446,392 +469,151 @@ const Sidebar: React.FC = () => {
     };
   }, []);
 
-  const renderCollapsedIcons = () => {
-    if (!isCollapsed) return null;
-
-    const isHomePage = pathname === '/';
-    const isMeetingPage = pathname?.includes('/meeting-details');
-    const isSettingsPage = pathname === '/settings';
-
-    return (
-      <TooltipProvider>
-        <div className="flex flex-col items-center space-y-4 mt-4">
-          <Logo isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => router.push('/')}
-                className={`p-2 rounded-lg transition-colors duration-150 ${isHomePage ? 'bg-muted' : 'hover:bg-muted'
-                  }`}
-              >
-                <Home className="w-5 h-5 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Home</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleRecordingToggle}
-                disabled={isRecording}
-                className={`p-2 ${isRecording ? 'bg-red-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-full transition-colors duration-150 shadow-sm`}
-              >
-                {isRecording ? (
-                  <Square className="w-5 h-5 text-white" />
-                ) : (
-                  <Mic className="w-5 h-5 text-white" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{isRecording ? "Recording in progress..." : "Start Recording"}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {betaFeatures.importAndRetranscribe && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => openImportDialog()}
-                  className="p-2 rounded-lg transition-colors duration-150 hover:bg-blue-500/20 bg-blue-500/10"
-                >
-                  <Upload className="w-5 h-5 text-blue-500" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p>Import Audio</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => {
-                  if (isCollapsed) toggleCollapse();
-                  toggleFolder('meetings');
-                }}
-                className={`p-2 rounded-lg transition-colors duration-150 ${isMeetingPage ? 'bg-muted' : 'hover:bg-muted'
-                  }`}
-              >
-                <NotebookPen className="w-5 h-5 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Meeting Notes</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => router.push('/settings')}
-                className={`p-2 rounded-lg transition-colors duration-150 ${isSettingsPage ? 'bg-muted' : 'hover:bg-muted'
-                  }`}
-              >
-                <Settings className="w-5 h-5 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Settings</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-lg transition-colors duration-150 hover:bg-muted"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-5 h-5 text-muted-foreground" />
-                ) : (
-                  <Moon className="w-5 h-5 text-muted-foreground" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Info isCollapsed={isCollapsed} />
-        </div>
-      </TooltipProvider>
-    );
-  };
-
   // Find matching transcript snippet for a meeting item
   const findMatchingSnippet = (itemId: string) => {
     if (!searchQuery.trim() || !searchResults.length) return null;
     return searchResults.find(result => result.id === itemId);
   };
 
-  const renderItem = (item: SidebarItem, depth = 0) => {
-    const isExpanded = expandedFolders.has(item.id);
-    const paddingLeft = `${depth * 12 + 12}px`;
-    const isActive = item.type === 'file' && currentMeeting?.id === item.id;
+  const renderItem = (item: SidebarItem) => {
+    const isActive = currentMeeting?.id === item.id;
     const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
-
-    // Check if this item has a matching transcript snippet
     const matchingResult = isMeetingItem ? findMatchingSnippet(item.id) : null;
     const hasTranscriptMatch = !!matchingResult;
-
-    if (isCollapsed) return null;
 
     return (
       <div key={item.id}>
         <div
-          className={`flex items-center transition-all duration-150 group ${item.type === 'folder' && depth === 0
-            ? 'p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg'
-            : `px-3 py-2 my-0.5 rounded-md text-sm ${isActive ? 'bg-blue-500/20 text-blue-400 font-medium' :
-              hasTranscriptMatch ? 'bg-yellow-500/10' : 'hover:bg-muted'
-            } cursor-pointer`
-            }`}
-          style={item.type === 'folder' && depth === 0 ? {} : { paddingLeft }}
+          className={`flex items-center px-2 py-2 my-0.5 rounded-md text-sm transition-all duration-150 group cursor-pointer ${
+            isActive ? 'bg-blue-500/20 text-blue-400 font-medium' :
+            hasTranscriptMatch ? 'bg-yellow-500/10' : 'hover:bg-muted'
+          }`}
           onClick={() => {
-            if (item.type === 'folder') {
-              toggleFolder(item.id);
-            } else {
-              setCurrentMeeting({ id: item.id, title: item.title });
-              const basePath = item.id.startsWith('intro-call') ? '/' :
-                item.id.includes('-') ? `/meeting-details?id=${item.id}` : `/notes/${item.id}`;
-              router.push(basePath);
-            }
+            setCurrentMeeting({ id: item.id, title: item.title });
+            const basePath = item.id.startsWith('intro-call') ? '/' :
+              item.id.includes('-') ? `/meeting-details?id=${item.id}` : `/notes/${item.id}`;
+            router.push(basePath);
           }}
         >
-          {item.type === 'folder' ? (
-            <>
-              {item.id === 'meetings' ? (
-                <Calendar className="w-4 h-4 mr-2" />
-              ) : item.id === 'notes' ? (
-                <Calendar className="w-4 h-4 mr-2" />
-              ) : null}
-              <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
-              <div className="ml-auto">
-                {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                )}
-              </div>
-              {searchQuery && item.id === 'meetings' && isSearching && (
-                <span className="ml-2 text-xs text-blue-500 animate-pulse">Searching...</span>
+          <div className="flex flex-col w-full">
+            <div className="flex items-center w-full">
+              {isMeetingItem ? (
+                <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-muted">
+                  <File className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-500/20">
+                  <Plus className="w-3.5 h-3.5 text-blue-500" />
+                </div>
               )}
-            </>
-          ) : (
-            <div className="flex flex-col w-full">
-              <div className="flex items-center w-full">
-                {isMeetingItem ? (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-muted">
-                    <File className="w-3.5 h-3.5 text-muted-foreground" />
-                  </div>
-                ) : (
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-500/20">
-                    <Plus className="w-3.5 h-3.5 text-blue-500" />
-                  </div>
-                )}
-                <span className="flex-1 break-words">{item.title}</span>
-                {isMeetingItem && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditStart(item.id, item.title);
-                      }}
-                      className="hover:text-blue-500 p-1 rounded-md hover:bg-blue-500/10 flex-shrink-0"
-                      aria-label="Edit meeting title"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteModalState({ isOpen: true, itemId: item.id });
-                      }}
-                      className="hover:text-red-600 p-1 rounded-md hover:bg-red-50 flex-shrink-0"
-                      aria-label="Delete meeting"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Show transcript match snippet if available */}
-              {hasTranscriptMatch && (
-                <div className="mt-1 ml-8 text-xs text-muted-foreground bg-yellow-500/10 p-1.5 rounded border border-yellow-500/20 line-clamp-2">
-                  <span className="font-medium text-yellow-600 dark:text-yellow-400">Match:</span> {matchingResult.matchContext}
+              <span className="flex-1 break-words">{item.title}</span>
+              {isMeetingItem && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditStart(item.id, item.title);
+                    }}
+                    className="hover:text-blue-500 p-1 rounded-md hover:bg-blue-500/10 flex-shrink-0"
+                    aria-label="Edit meeting title"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteModalState({ isOpen: true, itemId: item.id });
+                    }}
+                    className="hover:text-red-600 p-1 rounded-md hover:bg-red-50 flex-shrink-0"
+                    aria-label="Delete meeting"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               )}
             </div>
-          )}
-        </div>
-        {item.type === 'folder' && isExpanded && item.children && (
-          <div className="ml-1">
-            {item.children.map(child => renderItem(child, depth + 1))}
+            {hasTranscriptMatch && (
+              <div className="mt-1 ml-8 text-xs text-muted-foreground bg-yellow-500/10 p-1.5 rounded border border-yellow-500/20 line-clamp-2">
+                <span className="font-medium text-yellow-600 dark:text-yellow-400">Match:</span> {matchingResult.matchContext}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="fixed top-0 left-0 h-screen z-40">
-      <div
-        className={`h-screen bg-card border-r border-border shadow-sm flex flex-col transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'
-          }`}
-      >
-        {/*  Header with traffic light spacing */}
-        <div className="flex-shrink-0 h-22 flex items-center">
+    <div className="fixed top-0 left-0 h-screen z-40" style={{ width: sidebarWidth }}>
+      <div className="h-screen bg-card border-r border-border shadow-sm flex flex-col relative" style={{ width: sidebarWidth }}>
+        {/* Draggable titlebar strip — 28 px clears macOS traffic lights */}
+        <div className="titlebar flex-shrink-0 h-7" />
 
-          {/* Title container */}
-
-
-
-          <div className="flex-1">
-            {!isCollapsed && (
-              <div className="p-3">
-                {/* <span className="text-lg text-center border rounded-full bg-blue-50 border-white font-semibold text-gray-700 mb-2 block items-center">
-                  <span>Meetily</span>
-                </span> */}
-                <Logo isCollapsed={isCollapsed} toggleCollapse={toggleCollapse} />
-
-                <div className="relative mb-1">
-                  <InputGroup >
-                    <InputGroupInput placeholder='Search meeting content...' value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                    />
-                    <InputGroupAddon>
-                      <SearchIcon />
-                    </InputGroupAddon>
-                    {searchQuery &&
-                      <InputGroupAddon align={'inline-end'}>
-                        <InputGroupButton
-                          onClick={() => handleSearchChange('')}
-                        >
-                          <X />
-                        </InputGroupButton>
-                      </InputGroupAddon>
-                    }
-                  </InputGroup>
-                </div>
-              </div>
-            )}
+        {/* Search */}
+        <div className="p-3 pt-2">
+          <div className="relative mb-1">
+            <InputGroup>
+              <InputGroupInput
+                placeholder='Search meeting content...'
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+              />
+              <InputGroupAddon>
+                <SearchIcon />
+              </InputGroupAddon>
+              {searchQuery &&
+                <InputGroupAddon align={'inline-end'}>
+                  <InputGroupButton onClick={() => handleSearchChange('')}>
+                    <X />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              }
+            </InputGroup>
           </div>
+          {isSearching && searchQuery && (
+            <div className="text-xs text-blue-500 animate-pulse px-1">Searching...</div>
+          )}
         </div>
 
-        {/* Main content - scrollable area */}
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Fixed navigation items */}
-          <div className="flex-shrink-0">
-            {!isCollapsed && (
-              <div
-                onClick={() => router.push('/')}
-                className="p-3  text-lg font-semibold items-center hover:bg-muted h-10   flex mx-3 mt-3 rounded-lg cursor-pointer"
-              >
-                <Home className="w-4 h-4 mr-2" />
-                <span>Home</span>
-              </div>
-            )}
-          </div>
-
-          {/* Content area */}
-          <div className="flex-1 flex flex-col min-h-0">
-            {renderCollapsedIcons()}
-            {/* Meeting Notes folder header - fixed */}
-            {!isCollapsed && (
-              <div className="flex-shrink-0">
-                {filteredSidebarItems.filter(item => item.type === 'folder').map(item => (
-                  <div key={item.id}>
-                    <div
-                      className="flex items-center transition-all duration-150 p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg"
-                    >
-                      <NotebookPen className="w-4 h-4 mr-2 text-muted-foreground" />
-                      <span className="text-foreground">{item.title}</span>
-                      {searchQuery && item.id === 'meetings' && isSearching && (
-                        <span className="ml-2 text-xs text-blue-500 animate-pulse">Searching...</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Scrollable meeting items */}
-            {!isCollapsed && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                {filteredSidebarItems
-                  .filter(item => item.type === 'folder' && expandedFolders.has(item.id) && item.children)
-                  .map(item => (
-                    <div key={`${item.id}-children`} className="mx-3">
-                      {item.children!.map(child => renderItem(child, 1))}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
+        {/* Scrollable meeting list */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 px-2">
+          {filteredSidebarItems
+            .filter(item => item.type === 'folder' && item.children)
+            .flatMap(item => item.children!)
+            .map(child => renderItem(child))}
         </div>
 
         {/* Footer */}
-        {!isCollapsed && (
-
-          <div className="flex-shrink-0 p-2 border-t border-border">
-            <button
-              onClick={handleRecordingToggle}
-              disabled={isRecording}
-              className={`w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white ${isRecording ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'} rounded-lg transition-colors shadow-sm`}
-            >
-              {isRecording ? (
-                <>
-                  <Square className="w-4 h-4 mr-2" />
-                  <span>Recording in progress...</span>
-                </>
-              ) : (
-                <>
-                  <Mic className="w-4 h-4 mr-2" />
-                  <span>Start Recording</span>
-                </>
-              )}
-            </button>
-
-            {betaFeatures.importAndRetranscribe && (
-              <button
-                onClick={() => openImportDialog()}
-                className="w-full flex items-center justify-center px-3 py-2 mt-1 text-sm font-medium text-foreground bg-blue-500/20 hover:bg-blue-500/30 rounded-lg transition-colors shadow-sm"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                <span>Import Audio</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => router.push('/settings')}
-              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-lg transition-colors shadow-sm"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              <span>Settings</span>
-            </button>
-            <button
-              onClick={toggleTheme}
-              className="w-full flex items-center justify-center px-3 py-1.5 mt-1 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-lg transition-colors shadow-sm"
-            >
-              {theme === 'dark' ? (
-                <><Sun className="w-4 h-4 mr-2" /><span>Light mode</span></>
-              ) : (
-                <><Moon className="w-4 h-4 mr-2" /><span>Dark mode</span></>
-              )}
-            </button>
-            <Info isCollapsed={isCollapsed} />
-            <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-muted-foreground">
-              v0.3.0
-            </div>
+        <div className="flex-shrink-0 p-2 pt-4 flex flex-col items-center">
+          <RecordingControls
+            isRecording={isRecording}
+            barHeights={barHeights}
+            onRecordingStop={(callApi = true) => {
+              if ((window as any).handleRecordingStop) {
+                (window as any).handleRecordingStop(callApi);
+              }
+            }}
+            onRecordingStart={handleRecordingToggle}
+            onTranscriptReceived={() => {}}
+            onStopInitiated={() => {}}
+            onTranscriptionError={(message) => toast.error(message)}
+            isRecordingDisabled={isRecordingDisabled}
+            isParentProcessing={isProcessing}
+            selectedDevices={selectedDevices}
+            meetingName={meetingTitle}
+          />
+          <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-muted-foreground">
+            v0.3.0
           </div>
-        )}
+        </div>
+
+        {/* Resize handle — wider hit area, thin visual indicator */}
+        <div
+          className="absolute top-0 -right-1.5 w-3 h-full cursor-col-resize group"
+          onMouseDown={handleResizeMouseDown}
+        >
+          <div className="absolute top-0 right-0 w-1 h-full group-hover:bg-blue-500/40 group-active:bg-blue-500/60 transition-colors" />
+        </div>
       </div>
 
       {/* Confirmation Modal for Delete */}

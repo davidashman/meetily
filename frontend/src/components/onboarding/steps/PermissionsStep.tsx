@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Bell, Mic, Volume2 } from 'lucide-react';
+import { Mic, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OnboardingContainer } from '../OnboardingContainer';
 import { PermissionRow } from '../shared';
@@ -46,25 +46,6 @@ export function PermissionsStep() {
     }
   };
 
-  const handleNotificationsAction = useCallback(async () => {
-    if (permissions.notifications === 'denied') {
-      invoke('open_notification_system_settings').catch(() => {});
-      return;
-    }
-    setIsPending(true);
-    try {
-      // Use our own command — tauri-plugin-notification's requestPermission() on
-      // desktop is a stub that always returns "granted" without showing any dialog.
-      const granted = await invoke<boolean>('request_macos_notification_permission');
-      setPermissionStatus('notifications', granted ? 'authorized' : 'denied');
-    } catch (err) {
-      console.error('[PermissionsStep] notification permission error:', err);
-      setPermissionStatus('notifications', 'denied');
-    } finally {
-      setIsPending(false);
-    }
-  }, [permissions.notifications, setPermissionStatus]);
-
   const handleFinish = async () => {
     try {
       await completeOnboarding();
@@ -82,6 +63,7 @@ export function PermissionsStep() {
   const allPermissionsGranted =
     permissions.microphone === 'authorized' &&
     permissions.systemAudio === 'authorized';
+
 
   return (
     <OnboardingContainer
@@ -110,15 +92,6 @@ export function PermissionsStep() {
             status={permissions.systemAudio}
             isPending={isPending}
             onAction={handleSystemAudioAction}
-          />
-
-          <PermissionRow
-            icon={<Bell className="w-5 h-5" />}
-            title="Notifications"
-            description="Alerts you when another app grabs the mic so you can start recording"
-            status={permissions.notifications}
-            isPending={isPending}
-            onAction={handleNotificationsAction}
           />
         </div>
 

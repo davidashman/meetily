@@ -28,8 +28,6 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showRecordingNotification, setShowRecordingNotification] = useState(true);
-
   // Load recording preferences on component mount
   useEffect(() => {
     const loadPreferences = async () => {
@@ -51,21 +49,6 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     };
 
     loadPreferences();
-  }, []);
-
-  // Load recording notification preference
-  useEffect(() => {
-    const loadNotificationPref = async () => {
-      try {
-        const { Store } = await import('@tauri-apps/plugin-store');
-        const store = await Store.load('preferences.json');
-        const show = await store.get<boolean>('show_recording_notification') ?? true;
-        setShowRecordingNotification(show);
-      } catch (error) {
-        console.error('Failed to load notification preference:', error);
-      }
-    };
-    loadNotificationPref();
   }, []);
 
   const handleAutoSaveToggle = async (enabled: boolean) => {
@@ -101,23 +84,6 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       await invoke('open_recordings_folder');
     } catch (error) {
       console.error('Failed to open recordings folder:', error);
-    }
-  };
-
-  const handleNotificationToggle = async (enabled: boolean) => {
-    try {
-      setShowRecordingNotification(enabled);
-      const { Store } = await import('@tauri-apps/plugin-store');
-      const store = await Store.load('preferences.json');
-      await store.set('show_recording_notification', enabled);
-      await store.save();
-      toast.success('Preference saved');
-      await Analytics.track('recording_notification_preference_changed', {
-        enabled: enabled.toString()
-      });
-    } catch (error) {
-      console.error('Failed to save notification preference:', error);
-      toast.error('Failed to save preference');
     }
   };
 
@@ -212,20 +178,6 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
           </div>
         </div>
       )}
-
-      {/* Recording Notification Toggle */}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div className="flex-1">
-          <div className="font-medium">Recording Start Notification</div>
-          <div className="text-sm text-muted-foreground">
-            Show reminder to inform participants when recording starts
-          </div>
-        </div>
-        <Switch
-          checked={showRecordingNotification}
-          onCheckedChange={handleNotificationToggle}
-        />
-      </div>
 
       {/* Device Preferences */}
       <div className="space-y-4">

@@ -53,6 +53,13 @@ export function TranscriptRecovery({
     }
   }, [isOpen]);
 
+  // Close when no meetings remain
+  useEffect(() => {
+    if (isOpen && recoverableMeetings.length === 0) {
+      onClose();
+    }
+  }, [isOpen, recoverableMeetings.length, onClose]);
+
   // Auto-select first meeting if available
   useEffect(() => {
     if (isOpen && recoverableMeetings.length > 0 && !selectedMeetingId) {

@@ -7,7 +7,7 @@ use log;
 use env_logger;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info,app_lib::automation=debug,app_lib::notifications::macos_un=debug");
+    std::env::set_var("RUST_LOG", "info,app_lib::automation=debug");
     env_logger::init();
 
     // Async logger will be initialized lazily when first needed (after Tauri runtime starts)

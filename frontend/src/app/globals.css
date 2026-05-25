@@ -185,27 +185,6 @@
     scrollbar-color: #d1d5db transparent;
   }
 
-  /* BlockNote theme — map bn-* variables to shadcn variables so they stay in sync */
-  .bn-root[data-color-scheme] {
-    --bn-colors-editor-background: hsl(var(--background));
-    --bn-colors-editor-text: hsl(var(--foreground));
-    --bn-colors-menu-background: hsl(var(--card));
-    --bn-colors-menu-text: hsl(var(--card-foreground));
-    --bn-colors-tooltip-background: hsl(var(--popover));
-    --bn-colors-tooltip-text: hsl(var(--popover-foreground));
-    --bn-colors-hovered-background: hsl(var(--accent));
-    --bn-colors-hovered-text: hsl(var(--accent-foreground));
-    --bn-colors-selected-background: hsl(var(--primary));
-    --bn-colors-selected-text: hsl(var(--primary-foreground));
-    --bn-colors-disabled-background: hsl(var(--muted));
-    --bn-colors-disabled-text: hsl(var(--muted-foreground));
-    --bn-colors-shadow: hsl(var(--border));
-    --bn-colors-border: hsl(var(--border));
-    --bn-colors-side-menu: hsl(var(--muted-foreground));
-    --bn-border-radius: var(--radius);
-    --bn-font-family: inherit;
-  }
-
   /* BlockNote Editor - Override fixed dimensions for responsive layout */
   .bn-container {
     width: 100% !important;
@@ -237,4 +216,57 @@
   [data-node-type] {
     overflow: visible !important;
   }
+}
+
+/*
+ * BlockNote shadcn theme fix.
+ *
+ * @blocknote/shadcn embeds its own shadcn CSS variable definitions on .bn-shadcn
+ * and .bn-shadcn.dark (e.g. --background: 222.2 84% 4.9% for dark — near-black).
+ * .bn-shadcn .bn-editor then uses hsl(var(--background)), picking up BlockNote's
+ * values instead of our app's. We override with html-prefixed selectors for higher
+ * specificity (0,2,1 vs BlockNote's 0,2,0).
+ */
+html .bn-shadcn {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 3.9%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96.1%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 96.1%;
+  --muted-foreground: 0 0% 45.1%;
+  --accent: 0 0% 96.1%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 89.8%;
+  --input: 0 0% 89.8%;
+  --ring: 0 0% 3.9%;
+}
+
+html .bn-shadcn.dark {
+  --background: 0 0% 13%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 16%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 16%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 0 0% 9%;
+  --secondary: 0 0% 22%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 22%;
+  --muted-foreground: 0 0% 63.9%;
+  --accent: 0 0% 22%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 26%;
+  --input: 0 0% 26%;
+  --ring: 0 0% 83.1%;
 }

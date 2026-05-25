@@ -241,7 +241,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center text-gray-500 mt-8"
+                    className="text-center text-gray-500 mt-[26vh]"
                 >
                     {isRecording ? (
                         <>
@@ -257,8 +257,17 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                         </>
                     ) : (
                         <>
-                            <p className="text-lg font-semibold">Welcome to meetily!</p>
-                            <p className="text-xs mt-1">Start recording to see live transcription</p>
+                            <div className="flex justify-center mb-5">
+                                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-blue-500">
+                                    <rect x="0"  y="9"  width="3" height="6"  rx="1.5" fill="currentColor"/>
+                                    <rect x="5"  y="5"  width="3" height="14" rx="1.5" fill="currentColor"/>
+                                    <rect x="10" y="1"  width="3" height="22" rx="1.5" fill="currentColor"/>
+                                    <rect x="15" y="5"  width="3" height="14" rx="1.5" fill="currentColor"/>
+                                    <rect x="20" y="9"  width="3" height="6"  rx="1.5" fill="currentColor"/>
+                                </svg>
+                            </div>
+                            <p className="text-3xl font-bold tracking-tight">Welcome to meetily!</p>
+                            <p className="text-base mt-3 text-gray-400">Start recording to see live transcription</p>
                         </>
                     )}
                 </motion.div>

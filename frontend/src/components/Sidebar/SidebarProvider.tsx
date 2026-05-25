@@ -51,7 +51,9 @@ interface SidebarContextType {
   stopSummaryPolling: (meetingId: string) => void;
   // Refetch meetings from backend
   refetchMeetings: () => Promise<void>;
-
+  // Resizable sidebar
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | null>(null);
@@ -66,7 +68,8 @@ export const useSidebar = () => {
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [currentMeeting, setCurrentMeeting] = useState<CurrentMeeting | null>({ id: 'intro-call', title: '+ New Call' });
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const [meetings, setMeetings] = useState<CurrentMeeting[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
@@ -312,7 +315,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       startSummaryPolling,
       stopSummaryPolling,
       refetchMeetings: fetchMeetings,
-
+      sidebarWidth,
+      setSidebarWidth,
     }}>
       {children}
     </SidebarContext.Provider>

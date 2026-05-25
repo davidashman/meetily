@@ -246,7 +246,7 @@ export function SummaryGeneratorButtonGroup({
         <Button
           variant="outline"
           size="sm"
-          className="bg-gradient-to-r from-red-50 to-orange-50 hover:from-red-100 hover:to-orange-100 border-red-200 rounded-r-none xl:px-4"
+          className="bg-gradient-to-r from-red-50 to-orange-50 hover:from-red-100 hover:to-orange-100 border-red-200 dark:from-blue-950/60 dark:to-purple-950/60 dark:hover:from-blue-900/60 dark:hover:to-purple-900/60 dark:border-blue-800/50 rounded-r-none xl:px-4"
           onClick={() => {
             Analytics.trackButtonClick('stop_summary_generation', 'meeting_details');
             onStopGeneration();
