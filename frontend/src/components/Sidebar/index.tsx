@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { File, Trash2, Plus, Pencil, SearchIcon, X } from 'lucide-react';
+import { File, Trash2, Plus, Pencil, SearchIcon, X, Mic } from 'lucide-react';
 import { RecordingControls } from '@/components/RecordingControls';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useSidebar } from './SidebarProvider';
 import type { CurrentMeeting } from '@/components/Sidebar/SidebarProvider';
 import { ConfirmationModal } from '../ConfirmationModel/confirmation-modal';
@@ -38,6 +38,7 @@ interface SidebarItem {
 
 const Sidebar: React.FC = () => {
   const router = useRouter();
+  const pathname = usePathname();
   const {
     currentMeeting,
     setCurrentMeeting,
@@ -118,6 +119,20 @@ const Sidebar: React.FC = () => {
     status === RecordingStatus.STOPPING ||
     status === RecordingStatus.PROCESSING_TRANSCRIPTS ||
     status === RecordingStatus.SAVING;
+
+  const showFakeRecordingItem =
+    status === RecordingStatus.STARTING ||
+    status === RecordingStatus.RECORDING ||
+    status === RecordingStatus.STOPPING ||
+    status === RecordingStatus.PROCESSING_TRANSCRIPTS ||
+    status === RecordingStatus.SAVING;
+
+  const fakeItemLabel =
+    status === RecordingStatus.STARTING || status === RecordingStatus.RECORDING
+      ? 'Recording...'
+      : 'Processing...';
+
+  const isFakeItemActive = showFakeRecordingItem && pathname === '/';
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModelSettings, setShowModelSettings] = useState(false);
@@ -550,7 +565,7 @@ const Sidebar: React.FC = () => {
         <div className="flex-shrink-0 h-7" data-tauri-drag-region />
 
         {/* Search */}
-        <div className="p-3 pt-2">
+        <div className="p-3 pt-4">
           <div className="relative mb-1">
             <InputGroup>
               <InputGroupInput
@@ -577,6 +592,27 @@ const Sidebar: React.FC = () => {
 
         {/* Scrollable meeting list */}
         <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 px-2">
+          {showFakeRecordingItem && (
+            <div key="__recording__">
+              <div
+                className={`flex items-center px-2 py-2 my-0.5 rounded-md text-sm transition-all duration-150 cursor-pointer ${
+                  isFakeItemActive
+                    ? 'bg-blue-500/20 text-blue-400 font-medium'
+                    : 'hover:bg-muted'
+                }`}
+                onClick={() => {
+                  router.push('/');
+                }}
+              >
+                <div className="flex items-center w-full">
+                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-red-500/20">
+                    <Mic className="w-3.5 h-3.5 text-red-500" />
+                  </div>
+                  <span className="flex-1 break-words text-foreground">{fakeItemLabel}</span>
+                </div>
+              </div>
+            </div>
+          )}
           {filteredSidebarItems
             .filter(item => item.type === 'folder' && item.children)
             .flatMap(item => item.children!)

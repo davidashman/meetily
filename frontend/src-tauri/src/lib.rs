@@ -352,11 +352,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(audio::init_system_audio_state())
         .manage(summary::summary_engine::ModelManagerState(Arc::new(tokio::sync::Mutex::new(None))))
         .setup(|_app| {
             log::info!("Application setup complete");
+
+            // Restore window position/size from previous session
+            if let Some(window) = _app.get_webview_window("main") {
+                use tauri_plugin_window_state::WindowExt;
+                let _ = window.restore_state(tauri_plugin_window_state::StateFlags::all());
+            }
 
             // Initialize system tray
             if let Err(e) = tray::create_tray(_app.handle()) {

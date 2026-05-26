@@ -64,6 +64,7 @@
                         "core:window:allow-set-title",
                         "core:window:allow-start-dragging",
                         "store:default",
+                        "window-state:default",
                         "updater:default",
                         "process:default",
                         {
