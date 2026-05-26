@@ -342,7 +342,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   return (
     <TooltipProvider>
       <div className="flex flex-col space-y-2">
-        <div className="flex items-center space-x-2 bg-background rounded-full shadow-lg px-4 py-2">
+        <div className={`flex items-center space-x-2 ${isRecording ? 'bg-background' : 'bg-card'} rounded-full shadow-lg px-4 py-2`}>
             <>
               {showPlayback ? (
                 <>
@@ -421,7 +421,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                               }
                             }}
                             disabled={isPausing || isResuming || isStopping}
-                            className={`w-10 h-10 flex items-center justify-center ${isPausing || isResuming || isStopping
+                            className={`w-9 h-9 mr-1 flex items-center justify-center ${isPausing || isResuming || isStopping
                               ? 'bg-muted border-2 border-border text-muted-foreground'
                               : 'bg-card border-2 border-border text-foreground hover:border-muted-foreground hover:bg-muted'
                               } rounded-full transition-colors relative`}
@@ -447,7 +447,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                               handleStopRecording();
                             }}
                             disabled={isStopping || isPausing || isResuming}
-                            className={`w-10 h-10 flex items-center justify-center ${isStopping || isPausing || isResuming ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
+                            className={`w-12 h-12 flex items-center justify-center ${isStopping || isPausing || isResuming ? 'bg-gray-400' : 'bg-red-500 hover:bg-red-600'
                               } rounded-full text-white transition-colors relative`}
                           >
                             <Square size={16} fill="currentColor" />
@@ -465,19 +465,21 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                     </>
                   )}
 
-                  <div className="flex items-center space-x-1 mx-4">
-                    {barHeights.map((height, index) => (
-                      <div
-                        key={index}
-                        className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-orange-500' : 'bg-red-500'
-                          }`}
-                        style={{
-                          height: isRecording && !isPaused ? height : '4px',
-                          opacity: isPaused ? 0.6 : 1,
-                        }}
-                      />
-                    ))}
-                  </div>
+                  {isRecording && (
+                    <div className="flex items-center justify-center space-x-1 w-10">
+                      {barHeights.map((height, index) => (
+                        <div
+                          key={index}
+                          className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-orange-500' : 'bg-red-500'
+                            }`}
+                          style={{
+                            height: !isPaused ? height : '4px',
+                            opacity: isPaused ? 0.6 : 1,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </>
