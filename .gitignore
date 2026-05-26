@@ -5,6 +5,7 @@
 # dependencies
 /node_modules
 **/models
+/.claude
 /.pnp
 .pnp.*
 .yarn/*

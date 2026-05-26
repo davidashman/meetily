@@ -12,10 +12,11 @@ const MainContent: React.FC<MainContentProps> = ({ children }) => {
 
   return (
     <main
-      className="flex-1"
+      className="flex-1 flex flex-col"
       style={{ marginLeft: isCollapsed ? 64 : sidebarWidth }}
     >
-      <div className="pl-8 bg-background">
+      <div className="flex-shrink-0 h-7" data-tauri-drag-region />
+      <div className="pl-8 bg-background flex-1">
         {children}
       </div>
     </main>

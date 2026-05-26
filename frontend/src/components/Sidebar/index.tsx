@@ -547,7 +547,7 @@ const Sidebar: React.FC = () => {
     <div className="fixed top-0 left-0 h-screen z-40" style={{ width: sidebarWidth }}>
       <div className="h-screen bg-card border-r border-border shadow-sm flex flex-col relative" style={{ width: sidebarWidth }}>
         {/* Draggable titlebar strip — 28 px clears macOS traffic lights */}
-        <div className="titlebar flex-shrink-0 h-7" />
+        <div className="flex-shrink-0 h-7" data-tauri-drag-region />
 
         {/* Search */}
         <div className="p-3 pt-2">

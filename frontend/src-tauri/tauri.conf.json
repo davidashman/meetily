@@ -62,6 +62,7 @@
                         "core:menu:default",
                         "core:tray:default",
                         "core:window:allow-set-title",
+                        "core:window:allow-start-dragging",
                         "store:default",
                         "updater:default",
                         "process:default",

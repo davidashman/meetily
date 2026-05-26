@@ -1,26 +1,42 @@
 "use client"
 
-import { useEffect } from "react"
-import { FolderOpen } from "lucide-react"
+import { useEffect, useState } from "react"
+import { FolderOpen, FolderEdit } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import Analytics from "@/lib/analytics"
 import AnalyticsConsentSwitch from "./AnalyticsConsentSwitch"
 import { useConfig } from "@/contexts/ConfigContext"
 
 export function PreferenceSettings() {
-  const { storageLocations, isLoadingPreferences, loadPreferences } = useConfig();
+  const { storageLocations, isLoadingPreferences, loadPreferences, updateRecordingsPath } = useConfig();
+  const [isSelectingFolder, setIsSelectingFolder] = useState(false);
 
   useEffect(() => {
     loadPreferences();
     Analytics.track('preferences_viewed', {}).catch(() => {});
   }, [loadPreferences]);
 
-  const handleOpenFolder = async (folderType: 'recordings') => {
+  const handleOpenFolder = async () => {
     try {
       await invoke('open_recordings_folder');
-      Analytics.track('storage_folder_opened', { folder_type: folderType }).catch(() => {});
+      Analytics.track('storage_folder_opened', { folder_type: 'recordings' }).catch(() => {});
     } catch (error) {
       console.error('Failed to open recordings folder:', error);
+    }
+  };
+
+  const handleChangeFolder = async () => {
+    setIsSelectingFolder(true);
+    try {
+      const newPath = await invoke<string | null>('select_recording_folder');
+      if (newPath) {
+        updateRecordingsPath(newPath);
+        Analytics.track('storage_folder_changed', { folder_type: 'recordings' }).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Failed to select recordings folder:', error);
+    } finally {
+      setIsSelectingFolder(false);
     }
   };
 
@@ -43,13 +59,23 @@ export function PreferenceSettings() {
             <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
               {storageLocations?.recordings || 'Loading...'}
             </div>
-            <button
-              onClick={() => handleOpenFolder('recordings')}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Open Folder
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleOpenFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Open Folder
+              </button>
+              <button
+                onClick={handleChangeFolder}
+                disabled={isSelectingFolder}
+                className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FolderEdit className="w-4 h-4" />
+                {isSelectingFolder ? 'Selecting...' : 'Change Folder'}
+              </button>
+            </div>
           </div>
         </div>
 
