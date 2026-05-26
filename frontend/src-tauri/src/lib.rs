@@ -393,7 +393,22 @@ pub fn run() {
                     .separator()
                     .quit()
                     .build()?;
-                let menu = MenuBuilder::new(&h).item(&app_submenu).build()?;
+
+                // Window menu — Cmd+Shift+R reloads the webview without stopping a running recording
+                // (recording lives in the Rust backend, which is unaffected by a webview reload).
+                let reload_item = IconMenuItemBuilder::with_id("reload_window", "Reload Window")
+                    .accelerator("Cmd+Shift+R")
+                    .build(&h)?;
+                let window_submenu = SubmenuBuilder::new(&h, "Window")
+                    .minimize()
+                    .separator()
+                    .item(&reload_item)
+                    .build()?;
+
+                let menu = MenuBuilder::new(&h)
+                    .item(&app_submenu)
+                    .item(&window_submenu)
+                    .build()?;
                 _app.set_menu(menu)?;
                 // Set the Settings... icon via SF Symbol so it adapts to dark/light mode
                 unsafe { set_settings_menu_icon_sf_symbol() };
@@ -407,6 +422,10 @@ pub fn run() {
                             }
                             "import_audio" => {
                                 let _ = window.eval("window.openImportDialog && window.openImportDialog()");
+                            }
+                            "reload_window" => {
+                                // Reload the webview only — the Rust recording backend keeps running.
+                                let _ = window.eval("location.reload()");
                             }
                             _ => {}
                         }

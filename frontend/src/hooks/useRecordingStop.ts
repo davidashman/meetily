@@ -137,15 +137,17 @@ export function useRecordingStop(
 
   // Main recording stop handler
   const handleRecordingStop = useCallback(async (isCallApi: boolean) => {
-    if (recordingStoppedDataRef.current) {
-      await recordingStoppedDataRef.current;
-    }
-
-    // Guard: prevent duplicate/concurrent stop calls
+    // Guard: prevent duplicate/concurrent stop calls (MUST be before any await
+    // to avoid the async race where two callers both pass the check before either sets it)
     if (stopInProgressRef.current) {
+      console.log('[handleRecordingStop] already in progress, skipping duplicate call');
       return;
     }
     stopInProgressRef.current = true;
+
+    if (recordingStoppedDataRef.current) {
+      await recordingStoppedDataRef.current;
+    }
 
     // Set status to STOPPING immediately
     setStatus(RecordingStatus.STOPPING);

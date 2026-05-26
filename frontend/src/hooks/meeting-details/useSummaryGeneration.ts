@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Transcript, Summary } from '@/types';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 import { CurrentMeeting, useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -37,7 +37,27 @@ export function useSummaryGeneration({
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [originalTranscript, setOriginalTranscript] = useState<string>('');
 
-  const { startSummaryPolling, stopSummaryPolling } = useSidebar();
+  const { startSummaryPolling, stopSummaryPolling, updateSummaryCallback, removeSummaryCallback, activeSummaryPolls } = useSidebar();
+
+  // Keep a stable ref to the result-handler so updateSummaryCallback always sees the latest closures
+  const handlePollResultRef = useRef<((result: any) => void) | null>(null);
+
+  // Re-subscribe whenever we navigate back to this meeting while a poll is active.
+  // This replaces the stale closure left by the previous mount.
+  useEffect(() => {
+    const meetingId = meeting.id;
+    if (!activeSummaryPolls.has(meetingId)) return;
+
+    if (handlePollResultRef.current) {
+      updateSummaryCallback(meetingId, handlePollResultRef.current);
+    }
+
+    return () => {
+      // Remove the callback on unmount so a dead component isn't called.
+      // The poll itself keeps running inside SidebarProvider.
+      removeSummaryCallback(meetingId);
+    };
+  }, [meeting.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Helper to get status message
   const getSummaryStatusMessage = useCallback((status: SummaryStatus) => {
@@ -118,8 +138,9 @@ export function useSummaryGeneration({
       const process_id = result.process_id;
       console.log('Process ID:', process_id);
 
-      // Start global polling via context
-      startSummaryPolling(meeting.id, process_id, async (pollingResult) => {
+      // Build the result handler and store it in a ref so it can be re-registered
+      // by the subscribe effect when the user navigates away and back.
+      const handlePollResult = async (pollingResult: any) => {
         console.log('Summary status:', pollingResult);
 
         // Handle cancellation
@@ -323,7 +344,13 @@ export function useSummaryGeneration({
             await onMeetingUpdated();
           }
         }
-      });
+      };
+
+      // Store in ref so the subscribe effect can re-register it after navigation
+      handlePollResultRef.current = handlePollResult;
+
+      // Start global polling via context (survives navigation)
+      startSummaryPolling(meeting.id, process_id, handlePollResult);
     } catch (error) {
       console.error(`Failed to ${isRegeneration ? 'regenerate' : 'generate'} summary:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

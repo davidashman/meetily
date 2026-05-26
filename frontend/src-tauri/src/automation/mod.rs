@@ -419,16 +419,24 @@ mod macos {
         let args = crate::audio::recording_commands::RecordingArgs {
             save_path: String::new(),
         };
-        if let Err(e) = crate::audio::recording_commands::stop_recording(app.clone(), args).await {
-            if !e.contains("No recording") {
+        match crate::audio::recording_commands::stop_recording(app.clone(), args).await {
+            Ok(_) => {
+                // Signal the frontend to run post-stop processing (save + summarize).
+                // recording-stopped (with folder_path/meeting_name) is emitted inside
+                // stop_recording above and arrives first, so sessionStorage is already
+                // populated when this event is handled.
+                let _ = app.emit("recording-auto-stopped", ());
+            }
+            Err(e) if e.contains("No recording") => {
+                // Recording was already stopped by another path (e.g. overlay button).
+                // Do NOT emit recording-auto-stopped — the other path already triggered
+                // post-stop processing and emitting here would cause a duplicate save.
+                log::info!("[auto-detect] recording already stopped, skipping auto-stopped event");
+            }
+            Err(e) => {
                 log::error!("[auto-detect] stop_recording failed: {}", e);
             }
         }
-        // Signal the frontend to run post-stop processing (save + summarize).
-        // recording-stopped (with folder_path/meeting_name) is emitted inside
-        // stop_recording above and arrives first, so sessionStorage is already
-        // populated when this event is handled.
-        let _ = app.emit("recording-auto-stopped", ());
         crate::overlay::close(&app);
         crate::tray::update_tray_menu(&app);
     }

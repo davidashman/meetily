@@ -120,9 +120,11 @@ const Sidebar: React.FC = () => {
     status === RecordingStatus.PROCESSING_TRANSCRIPTS ||
     status === RecordingStatus.SAVING;
 
+  // isRecording is polled from the backend every 500 ms and is the most reliable signal.
+  // The status-based checks cover the post-stop processing phases (STOPPING → SAVING).
   const showFakeRecordingItem =
+    isRecording ||
     status === RecordingStatus.STARTING ||
-    status === RecordingStatus.RECORDING ||
     status === RecordingStatus.STOPPING ||
     status === RecordingStatus.PROCESSING_TRANSCRIPTS ||
     status === RecordingStatus.SAVING;

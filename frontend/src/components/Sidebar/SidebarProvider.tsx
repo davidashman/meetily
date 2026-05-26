@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
@@ -49,6 +49,10 @@ interface SidebarContextType {
   activeSummaryPolls: Map<string, NodeJS.Timeout>;
   startSummaryPolling: (meetingId: string, processId: string, onUpdate: (result: any) => void) => void;
   stopSummaryPolling: (meetingId: string) => void;
+  // Cross-navigation summary state: register/unregister a callback so polls survive page changes
+  updateSummaryCallback: (meetingId: string, onUpdate: (result: any) => void) => void;
+  removeSummaryCallback: (meetingId: string) => void;
+  getSummaryLastResult: (meetingId: string) => any | null;
   // Refetch meetings from backend
   refetchMeetings: () => Promise<void>;
   // Resizable sidebar
@@ -78,6 +82,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [serverAddress, setServerAddress] = useState('');
   const [transcriptServerAddress, setTranscriptServerAddress] = useState('');
   const [activeSummaryPolls, setActiveSummaryPolls] = useState<Map<string, NodeJS.Timeout>>(new Map());
+  // Survives navigation: mutable callback and latest result per meeting (refs, no re-renders)
+  const summaryCallbacks = useRef<Map<string, (result: any) => void>>(new Map());
+  const summaryLastResults = useRef<Map<string, any>>(new Map());
 
   // Use recording state from RecordingStateContext (single source of truth)
   const { isRecording } = useRecordingState();
@@ -198,15 +205,18 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       clearInterval(activeSummaryPolls.get(meetingId)!);
     }
 
+    // Register the initial callback (survives navigation via ref)
+    summaryCallbacks.current.set(meetingId, onUpdate);
+
     console.log(`📊 Starting polling for meeting ${meetingId}, process ${processId}`);
 
     let pollCount = 0;
-    const MAX_POLLS = 200; // ~16.5 minutes at 5-second intervals (slightly longer than backend's 15-min timeout to avoid race conditions)
+    const MAX_POLLS = 200; // ~16.5 minutes at 5-second intervals
 
     const pollInterval = setInterval(async () => {
       pollCount++;
 
-      // Timeout safety: Stop after 10 minutes
+      // Timeout safety: Stop after ~16 minutes
       if (pollCount >= MAX_POLLS) {
         console.warn(`⏱️ Polling timeout for ${meetingId} after ${MAX_POLLS} iterations`);
         clearInterval(pollInterval);
@@ -215,10 +225,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
           next.delete(meetingId);
           return next;
         });
-        onUpdate({
+        const timeoutResult = {
           status: 'error',
           error: 'Summary generation timed out after 15 minutes. Please try again or check your model configuration.'
-        });
+        };
+        summaryLastResults.current.set(meetingId, timeoutResult);
+        summaryCallbacks.current.get(meetingId)?.(timeoutResult);
         return;
       }
       try {
@@ -228,8 +240,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
         console.log(`📊 Polling update for ${meetingId}:`, result.status);
 
-        // Call the update callback with result
-        onUpdate(result);
+        // Store latest result so it can be re-applied when the page re-mounts
+        summaryLastResults.current.set(meetingId, result);
+        // Call whichever callback is currently registered (may have been updated during navigation)
+        summaryCallbacks.current.get(meetingId)?.(result);
 
         // Stop polling if completed, error, failed, cancelled, or idle (after initial processing)
         if (result.status === 'completed' || result.status === 'error' || result.status === 'failed' || result.status === 'cancelled') {
@@ -241,7 +255,6 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
             return next;
           });
         } else if (result.status === 'idle' && pollCount > 1) {
-          // If we get 'idle' after polling started, process completed/disappeared
           console.log(`Process completed or not found for ${meetingId}, stopping poll`);
           clearInterval(pollInterval);
           setActiveSummaryPolls(prev => {
@@ -252,11 +265,12 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error(`Polling error for ${meetingId}:`, error);
-        // Report error to callback
-        onUpdate({
+        const errResult = {
           status: 'error',
           error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        };
+        summaryLastResults.current.set(meetingId, errResult);
+        summaryCallbacks.current.get(meetingId)?.(errResult);
         clearInterval(pollInterval);
         setActiveSummaryPolls(prev => {
           const next = new Map(prev);
@@ -268,6 +282,25 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
     setActiveSummaryPolls(prev => new Map(prev).set(meetingId, pollInterval));
   }, [activeSummaryPolls]);
+
+  // Replace the callback for an ongoing poll without stopping it.
+  // Called when the meeting-details page re-mounts while a summary is generating.
+  const updateSummaryCallback = React.useCallback((meetingId: string, onUpdate: (result: any) => void) => {
+    summaryCallbacks.current.set(meetingId, onUpdate);
+    // Immediately replay the last known result so the newly-mounted component is in sync
+    const last = summaryLastResults.current.get(meetingId);
+    if (last) {
+      onUpdate(last);
+    }
+  }, []);
+
+  const removeSummaryCallback = React.useCallback((meetingId: string) => {
+    summaryCallbacks.current.delete(meetingId);
+  }, []);
+
+  const getSummaryLastResult = React.useCallback((meetingId: string): any | null => {
+    return summaryLastResults.current.get(meetingId) ?? null;
+  }, []);
 
   const stopSummaryPolling = React.useCallback((meetingId: string) => {
     const pollInterval = activeSummaryPolls.get(meetingId);
@@ -314,6 +347,9 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       activeSummaryPolls,
       startSummaryPolling,
       stopSummaryPolling,
+      updateSummaryCallback,
+      removeSummaryCallback,
+      getSummaryLastResult,
       refetchMeetings: fetchMeetings,
       sidebarWidth,
       setSidebarWidth,
