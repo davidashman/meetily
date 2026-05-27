@@ -1,0 +1,22 @@
+{
+  "name": "General Discusion",
+  "description": "A standard template for general discussions, focusing on key points and supporting notes.",
+  "sections": [
+    {
+      "title": "Summary",
+      "instruction": "Provide a brief, one-paragraph executive summary of the entire meeting.  Focus on the most relevant a key points from the discussion.",
+      "format": "paragraph"
+    },
+    {
+      "title": "Key Points",
+      "instruction": "Create a bulleted list of the key points from the discussion.",
+      "item_format": "**Summary**: Additional details and notes",
+      "format": "list"
+    },
+    {
+      "title": "Follow Ups",
+      "instruction": "List all follow up tasks. Always add reference transcript segment and timestamp.",
+      "format": "list"
+    }
+  ]
+}

@@ -207,10 +207,18 @@ function MeetingDetailsContent() {
 
         console.log('FETCH SUMMARY: Raw response:', summary);
 
-        // Check if the summary request failed with 404 or error status, or if no summary exists yet (idle)
-        // Note: 'cancelled' and 'failed' statuses can still have data if backup was restored
-        if (summary.status === 'idle' || (!summary.data && summary.status === 'error')) {
-          console.warn('Meeting summary not found or no summary generated yet:', summary.error || 'idle');
+        // Check if the summary request failed with 404 or error status, or if no summary exists yet (idle).
+        // Treat in-progress statuses as null so SummaryPanel shows the generating spinner
+        // (driven by the useSummaryGeneration re-subscription effect) instead of a blank screen.
+        // Note: 'cancelled' and 'failed' statuses can still have data if backup was restored.
+        if (
+          summary.status === 'idle' ||
+          summary.status === 'processing' ||
+          summary.status === 'summarizing' ||
+          summary.status === 'regenerating' ||
+          (!summary.data && summary.status === 'error')
+        ) {
+          console.warn('Meeting summary not found or no summary generated yet:', summary.error || summary.status);
           setMeetingSummary(null);
           return;
         }

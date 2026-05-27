@@ -221,15 +221,27 @@ pub fn update_tray_menu<R: Runtime>(app: &AppHandle<R>) {
 pub fn set_tray_state<R: Runtime>(app: &AppHandle<R>, state: RecordingState) {
     log::info!("Tray: Setting intermediate state: {:?}", state);
     // During recording state transitions, we assume recording is allowed (we're already recording)
-    if let Ok(menu) = build_menu(app, state, true) {
+    if let Ok(menu) = build_menu(app, state.clone(), true) {
         if let Some(tray) = app.tray_by_id("main-tray") {
             let result = tray.set_menu(Some(menu));
             log::info!("Tray: Intermediate state menu update result: {:?}", result);
+            update_tray_icon_for_state(&tray, &state);
         } else {
             log::warn!("Tray: Could not find tray with id 'main-tray'");
         }
     } else {
         log::error!("Tray: Failed to build menu for intermediate state");
+    }
+}
+
+fn update_tray_icon_for_state<R: Runtime>(tray: &tauri::tray::TrayIcon<R>, state: &RecordingState) {
+    let is_recording = matches!(state, RecordingState::Recording | RecordingState::Pausing | RecordingState::Resuming);
+    if is_recording {
+        let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-icon-recording.png")));
+        let _ = tray.set_icon_as_template(false);
+    } else {
+        let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-icon.png")));
+        let _ = tray.set_icon_as_template(true);
     }
 }
 
@@ -300,10 +312,11 @@ pub async fn update_tray_menu_async<R: Runtime>(app: &AppHandle<R>) {
     let can_record = check_can_record(app).await;
     log::info!("Tray: can_record: {}", can_record);
 
-    if let Ok(menu) = build_menu(app, recording_state, can_record) {
+    if let Ok(menu) = build_menu(app, recording_state.clone(), can_record) {
         if let Some(tray) = app.tray_by_id("main-tray") {
             let result = tray.set_menu(Some(menu));
             log::info!("Tray: Menu update result: {:?}", result);
+            update_tray_icon_for_state(&tray, &recording_state);
         } else {
             log::warn!("Tray: Could not find tray with id 'main-tray'");
         }

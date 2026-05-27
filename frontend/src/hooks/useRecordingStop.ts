@@ -37,14 +37,14 @@ export function useRecordingStop(
   setIsRecording: (value: boolean) => void,
   setIsRecordingDisabled: (value: boolean) => void
 ): UseRecordingStopReturn {
-  // USE global state instead
   const recordingState = useRecordingState();
   const {
     status,
     setStatus,
     isStopping,
     isProcessing: isProcessingTranscript,
-    isSaving: isSavingTranscript
+    isSaving: isSavingTranscript,
+    stopInProgressRef,
   } = recordingState;
 
   const {
@@ -64,9 +64,6 @@ export function useRecordingStop(
   } = useSidebar();
 
   const router = useRouter();
-
-  // Guard to prevent duplicate/concurrent stop calls (e.g., from UI and tray simultaneously)
-  const stopInProgressRef = useRef(false);
 
   // Promise to track recording-stopped event data (fixes race condition with recording-stop-complete)
   const recordingStoppedDataRef = useRef<Promise<void> | null>(null);
@@ -138,7 +135,10 @@ export function useRecordingStop(
   // Main recording stop handler
   const handleRecordingStop = useCallback(async (isCallApi: boolean) => {
     // Guard: prevent duplicate/concurrent stop calls (MUST be before any await
-    // to avoid the async race where two callers both pass the check before either sets it)
+    // to avoid the async race where two callers both pass the check before either sets it).
+    // stopInProgressRef lives in RecordingStateContext and is shared across all
+    // useRecordingStop instances, so concurrent calls from different components
+    // (e.g. RecordingPostProcessingProvider + page.tsx) are also deduplicated.
     if (stopInProgressRef.current) {
       console.log('[handleRecordingStop] already in progress, skipping duplicate call');
       return;
@@ -413,7 +413,7 @@ export function useRecordingStop(
       // isRecording already set to false at function start
       setIsRecordingDisabled(false);
     } finally {
-      // Always reset the guard flag when done
+      // Always reset the shared guard when done
       stopInProgressRef.current = false;
     }
   }, [

@@ -44,6 +44,11 @@ interface RecordingStateContextType extends RecordingState {
   isStopping: boolean;
   isProcessing: boolean;
   isSaving: boolean;
+
+  // Shared guard ref used by useRecordingStop to deduplicate concurrent stop
+  // calls across multiple hook instances (e.g. RecordingPostProcessingProvider
+  // and page.tsx both mount the hook). A ref avoids unnecessary re-renders.
+  stopInProgressRef: React.MutableRefObject<boolean>;
 }
 
 const RecordingStateContext = createContext<RecordingStateContextType | null>(null);
@@ -68,6 +73,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stopInProgressRef = useRef<boolean>(false);
 
   // NEW: Status setter with logging
   const setStatus = useCallback((status: RecordingStatus, message?: string) => {
@@ -232,6 +238,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
     isStopping: state.status === RecordingStatus.STOPPING,
     isProcessing: state.status === RecordingStatus.PROCESSING_TRANSCRIPTS,
     isSaving: state.status === RecordingStatus.SAVING,
+    stopInProgressRef,
   }), [state, setStatus]);
 
   return (

@@ -48,9 +48,44 @@ export function useSummaryGeneration({
     const meetingId = meeting.id;
     if (!activeSummaryPolls.has(meetingId)) return;
 
-    if (handlePollResultRef.current) {
-      updateSummaryCallback(meetingId, handlePollResultRef.current);
+    // Show the generating UI immediately so the user doesn't see a blank screen.
+    setSummaryStatus('summarizing');
+
+    if (!handlePollResultRef.current) {
+      // handlePollResultRef is null because the component just remounted (all refs
+      // are reset on unmount/remount). Build a minimal handler with current closures
+      // so updateSummaryCallback can replay the last known result right away.
+      const freshHandler = async (pollingResult: any) => {
+        if (!pollingResult) return;
+        const { status, data, error: pollError } = pollingResult;
+
+        if (status === 'cancelled') {
+          setSummaryStatus('idle');
+          return;
+        }
+        if (status === 'error' || status === 'failed') {
+          setSummaryError(pollError || 'Summary generation failed');
+          setSummaryStatus('error');
+          return;
+        }
+        if (status === 'completed' && data) {
+          const meetingName = data.MeetingName || pollingResult.meetingName;
+          if (meetingName) updateMeetingTitle(meetingName);
+          if (data.markdown) {
+            setAiSummary({ markdown: data.markdown } as any);
+          } else {
+            setAiSummary(data);
+          }
+          setSummaryStatus('completed');
+          return;
+        }
+        // Still in progress
+        setSummaryStatus('summarizing');
+      };
+      handlePollResultRef.current = freshHandler;
     }
+
+    updateSummaryCallback(meetingId, handlePollResultRef.current);
 
     return () => {
       // Remove the callback on unmount so a dead component isn't called.
