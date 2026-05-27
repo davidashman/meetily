@@ -78,4 +78,3 @@ experiments/
 target/
 
 frontend/src-tauri/binaries/
-Cargo.lock
