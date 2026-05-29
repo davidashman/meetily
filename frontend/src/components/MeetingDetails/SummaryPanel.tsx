@@ -26,7 +26,6 @@ interface SummaryPanelProps {
   isSaving: boolean;
   onSaveAll: () => Promise<void>;
   onCopySummary: () => Promise<void>;
-  onOpenFolder: () => Promise<void>;
   aiSummary: Summary | null;
   summaryStatus: 'idle' | 'processing' | 'summarizing' | 'regenerating' | 'completed' | 'error';
   transcripts: Transcript[];
@@ -62,7 +61,6 @@ export function SummaryPanel({
   isSaving,
   onSaveAll,
   onCopySummary,
-  onOpenFolder,
   aiSummary,
   summaryStatus,
   transcripts,
@@ -88,7 +86,7 @@ export function SummaryPanel({
   const isSummaryLoading = summaryStatus === 'processing' || summaryStatus === 'summarizing' || summaryStatus === 'regenerating';
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-background overflow-hidden">
+    <div className="flex-1 min-w-0 mb-2 flex flex-col bg-background overflow-hidden">
       {/* Title area */}
       <div className="p-4 border-b border-border">
         {/* <EditableTitle
@@ -128,11 +126,6 @@ export function SummaryPanel({
                 isDirty={isTitleDirty || (summaryRef.current?.isDirty || false)}
                 onSave={onSaveAll}
                 onCopy={onCopySummary}
-                onFind={() => {
-                  // TODO: Implement find in summary functionality
-                  console.log('Find in summary clicked');
-                }}
-                onOpenFolder={onOpenFolder}
                 hasSummary={!!aiSummary}
               />
             </div>

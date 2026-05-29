@@ -252,6 +252,14 @@ mod macos {
 
         let macos_version = macos_ver;
 
+        // Load auto-record app list; refresh every 30 ticks so settings changes
+        // take effect without restarting the app.
+        let mut auto_record_apps = crate::audio::recording_preferences::load_recording_preferences(&app)
+            .await
+            .unwrap_or_default()
+            .auto_record_apps;
+        let mut ticks_since_prefs_reload: u32 = 0;
+
         loop {
             if !ENABLED.load(Ordering::Relaxed) {
                 tokio::time::sleep(Duration::from_secs(5)).await;
@@ -267,6 +275,13 @@ mod macos {
 
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    ticks_since_prefs_reload += 1;
+                    if ticks_since_prefs_reload >= 30 {
+                        ticks_since_prefs_reload = 0;
+                        if let Ok(prefs) = crate::audio::recording_preferences::load_recording_preferences(&app).await {
+                            auto_record_apps = prefs.auto_record_apps;
+                        }
+                    }
                     poll_tick(
                         &app,
                         macos_version,
@@ -275,6 +290,7 @@ mod macos {
                         &mut prompted_app,
                         &mut prompted_pid,
                         &mut stop_at,
+                        &auto_record_apps,
                     );
                 }
 
@@ -300,6 +316,7 @@ mod macos {
         prompted_app: &mut Option<String>,
         prompted_pid: &mut Option<i32>,
         stop_at: &mut Option<tokio::time::Instant>,
+        auto_record_apps: &[crate::audio::recording_preferences::AutoRecordApp],
     ) {
         let using_process_api = macos_version >= (14, 0);
         let current_pids: HashSet<i32> = if using_process_api {
@@ -378,13 +395,35 @@ mod macos {
             *prompted_pid = Some(pid);
             *stop_at = None;
 
-            log::info!(
-                "[auto-detect] detected '{}' ({}), prompting user",
-                display_name,
-                bundle_id.as_deref().unwrap_or("no-bundle-id")
-            );
+            let is_auto_record = bundle_id
+                .as_deref()
+                .map(|id| auto_record_apps.iter().any(|a| a.bundle_id == id))
+                .unwrap_or(false);
 
-            crate::overlay::show_prompt(app, &display_name, &meeting_name);
+            if is_auto_record {
+                log::info!(
+                    "[auto-detect] detected '{}' ({}) — in auto-record list, starting immediately",
+                    display_name,
+                    bundle_id.as_deref().unwrap_or("no-bundle-id")
+                );
+                crate::overlay::show_recording(app, &meeting_name);
+                let app_c = app.clone();
+                let name = meeting_name.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = crate::audio::recording_commands::start_recording_with_meeting_name(
+                        app_c,
+                        Some(name),
+                    )
+                    .await;
+                });
+            } else {
+                log::info!(
+                    "[auto-detect] detected '{}' ({}), prompting user",
+                    display_name,
+                    bundle_id.as_deref().unwrap_or("no-bundle-id")
+                );
+                crate::overlay::show_prompt(app, &display_name, &meeting_name);
+            }
         }
 
         // Pids that stopped capturing.

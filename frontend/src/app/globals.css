@@ -161,28 +161,47 @@
     app-region: no-drag;
   }
 
-  /* Custom scrollbar styles */
-  .custom-scrollbar::-webkit-scrollbar {
+  /* Global scrollbar styles */
+  ::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-track {
+  ::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
+  ::-webkit-scrollbar-thumb {
     background: #d1d5db;
     border-radius: 3px;
   }
 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  ::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
   }
 
-  /* Firefox scrollbar */
-  .custom-scrollbar {
+  /* Firefox */
+  * {
     scrollbar-width: thin;
     scrollbar-color: #d1d5db transparent;
+  }
+
+  /* Dark mode */
+  .dark ::-webkit-scrollbar-thumb {
+    background: #6b7280;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+
+  .dark * {
+    scrollbar-color: #6b7280 transparent;
+  }
+
+  /* Keep .custom-scrollbar class for any explicit overrides */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
   }
 
   /* BlockNote Editor - Override fixed dimensions for responsive layout */

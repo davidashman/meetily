@@ -41,6 +41,7 @@ Identify unresolved issues, assumptions that may not hold, potential blockers, a
 Provide concrete, specific next steps and strategic or process improvements based on the discussion.
 
 Rules:
+- Do NOT include a title or heading at the top — begin directly with the first section heading
 - Base all interpretations on evidence from the transcript; cite specific moments when helpful
 - Flag uncertainty with "likely", "possibly", or "the transcript suggests"
 - Be direct and specific — avoid generic advice

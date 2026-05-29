@@ -11,7 +11,6 @@ interface TranscriptPanelProps {
   customPrompt: string;
   onPromptChange: (value: string) => void;
   onCopyTranscript: () => void;
-  onOpenMeetingFolder: () => Promise<void>;
   isRecording: boolean;
   disableAutoScroll?: boolean;
 
@@ -35,7 +34,6 @@ export function TranscriptPanel({
   customPrompt,
   onPromptChange,
   onCopyTranscript,
-  onOpenMeetingFolder,
   isRecording,
   disableAutoScroll = false,
   usePagination = false,
@@ -65,13 +63,12 @@ export function TranscriptPanel({
   }, [transcripts, usePagination, segments]);
 
   return (
-    <div className="hidden md:flex md:w-1/4 lg:w-1/3 min-w-0 border-r border-border bg-background flex-col relative shrink-0">
+    <div className="flex flex-col pb-2 flex-1 min-w-0 bg-background overflow-hidden">
       {/* Title area */}
       <div className="p-4 border-b border-border">
         <TranscriptButtonGroup
           transcriptCount={usePagination ? (totalCount ?? convertedSegments.length) : (transcripts?.length || 0)}
           onCopyTranscript={onCopyTranscript}
-          onOpenMeetingFolder={onOpenMeetingFolder}
           meetingId={meetingId}
           meetingFolderPath={meetingFolderPath}
           onRefetchTranscripts={onRefetchTranscripts}
@@ -99,10 +96,10 @@ export function TranscriptPanel({
 
       {/* Custom prompt input at bottom of transcript section */}
       {!isRecording && convertedSegments.length > 0 && (
-        <div className="p-1 border-t border-border">
+        <div className="m-2 mb-6 border-t border-border">
           <textarea
             placeholder="Add context for AI summary. For example people involved, meeting overview, objective etc..."
-            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-background text-foreground shadow-sm min-h-[80px] resize-y"
+            className="w-full px-3 py-2 border border-border rounded-md text-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-background text-foreground shadow-sm min-h-[140px] resize-y"
             value={customPrompt}
             onChange={(e) => onPromptChange(e.target.value)}
           />

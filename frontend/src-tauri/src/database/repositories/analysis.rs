@@ -70,6 +70,28 @@ impl AnalysisProcessesRepository {
         Ok(())
     }
 
+    pub async fn save_analysis_result(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        markdown: &str,
+    ) -> Result<(), sqlx::Error> {
+        let now = Utc::now();
+        sqlx::query(
+            r#"
+            UPDATE analysis_processes
+            SET result = ?, updated_at = ?
+            WHERE meeting_id = ?
+            "#,
+        )
+        .bind(markdown)
+        .bind(now)
+        .bind(meeting_id)
+        .execute(pool)
+        .await?;
+        info!("Analysis result saved for meeting_id: {}", meeting_id);
+        Ok(())
+    }
+
     pub async fn update_process_failed(
         pool: &SqlitePool,
         meeting_id: &str,

@@ -387,3 +387,37 @@ pub async fn api_cancel_analysis<R: Runtime>(
         Ok(serde_json::json!({ "message": "No active analysis to cancel", "meeting_id": meeting_id }))
     }
 }
+
+/// Saves edited analysis markdown back to the database and disk
+#[tauri::command]
+pub async fn api_save_analysis<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    markdown: String,
+) -> Result<serde_json::Value, String> {
+    log_info!("api_save_analysis called for meeting_id: {}", meeting_id);
+    let pool = state.db_manager.pool();
+
+    AnalysisProcessesRepository::save_analysis_result(pool, &meeting_id, &markdown)
+        .await
+        .map_err(|e| format!("Failed to save analysis: {}", e))?;
+
+    // Write analysis.md to the meeting folder
+    match MeetingsRepository::get_meeting_metadata(pool, &meeting_id).await {
+        Ok(Some(meeting)) => {
+            if let Some(folder_path) = meeting.folder_path {
+                let analysis_path = std::path::Path::new(&folder_path).join("analysis.md");
+                if let Err(e) = std::fs::write(&analysis_path, &markdown) {
+                    log_warn!("Failed to write analysis.md for {}: {}", meeting_id, e);
+                } else {
+                    log_info!("analysis.md updated at {}", analysis_path.display());
+                }
+            }
+        }
+        Ok(None) => log_warn!("Meeting {} not found when saving analysis.md", meeting_id),
+        Err(e) => log_warn!("Failed to look up folder_path for {}: {}", meeting_id, e),
+    }
+
+    Ok(serde_json::json!({ "message": "Analysis saved successfully" }))
+}

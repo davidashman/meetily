@@ -741,6 +741,7 @@ pub fn run() {
             summary::commands::api_get_analysis,
             summary::commands::api_process_analysis,
             summary::commands::api_cancel_analysis,
+            summary::commands::api_save_analysis,
             // Template commands
             summary::template_commands::api_list_templates,
             summary::template_commands::api_get_template_details,
@@ -761,6 +762,7 @@ pub fn run() {
             audio::recording_preferences::get_current_audio_backend,
             audio::recording_preferences::set_audio_backend,
             audio::recording_preferences::get_audio_backend_info,
+            audio::recording_preferences::pick_application_for_auto_record,
             // Language preference commands
             set_language_preference,
             // System audio capture commands

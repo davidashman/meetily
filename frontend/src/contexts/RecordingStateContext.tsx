@@ -75,7 +75,6 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const elapsedIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stopInProgressRef = useRef<boolean>(false);
 
   // NEW: Status setter with logging
@@ -104,10 +103,10 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
         isActive: backendState.is_active,
         recordingDuration: backendState.recording_duration,
         activeDuration: backendState.active_duration,
-        // Initialize elapsed from backend when we first detect an ongoing recording
-        ...(backendState.is_recording && !prev.isRecording && backendState.recording_duration != null
-          ? { elapsedSeconds: Math.round(backendState.recording_duration) }
-          : {}),
+        // Always derive elapsed from the backend so all windows stay in sync
+        elapsedSeconds: backendState.is_recording && backendState.recording_duration != null
+          ? Math.round(backendState.recording_duration)
+          : (backendState.is_recording ? prev.elapsedSeconds : 0),
       }));
 
       console.log('[RecordingStateContext] Synced with backend:', backendState);
@@ -139,26 +138,6 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
       pollingIntervalRef.current = null;
     }
   };
-
-  // Elapsed timer — increments every second while isRecording is true
-  useEffect(() => {
-    if (!state.isRecording) {
-      if (elapsedIntervalRef.current) {
-        clearInterval(elapsedIntervalRef.current);
-        elapsedIntervalRef.current = null;
-      }
-      return;
-    }
-    elapsedIntervalRef.current = setInterval(() => {
-      setState(prev => ({ ...prev, elapsedSeconds: prev.elapsedSeconds + 1 }));
-    }, 1000);
-    return () => {
-      if (elapsedIntervalRef.current) {
-        clearInterval(elapsedIntervalRef.current);
-        elapsedIntervalRef.current = null;
-      }
-    };
-  }, [state.isRecording]);
 
   /**
    * Set up event listeners for backend state changes

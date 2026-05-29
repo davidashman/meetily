@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, Save, Loader2, Search, FolderOpen } from 'lucide-react';
+import { Copy, Save, Loader2 } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 
 interface SummaryUpdaterButtonGroupProps {
@@ -11,7 +11,6 @@ interface SummaryUpdaterButtonGroupProps {
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
   onFind?: () => void;
-  onOpenFolder: () => Promise<void>;
   hasSummary: boolean;
 }
 
@@ -21,7 +20,6 @@ export function SummaryUpdaterButtonGroup({
   onSave,
   onCopy,
   onFind,
-  onOpenFolder,
   hasSummary
 }: SummaryUpdaterButtonGroupProps) {
   return (

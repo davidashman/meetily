@@ -12,6 +12,12 @@ use log::error;
 use crate::audio::capture::AudioCaptureBackend;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AutoRecordApp {
+    pub bundle_id: String,
+    pub display_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecordingPreferences {
     #[serde(default)]
     pub preferred_mic_device: Option<String>,
@@ -20,6 +26,8 @@ pub struct RecordingPreferences {
     #[cfg(target_os = "macos")]
     #[serde(default)]
     pub system_audio_backend: Option<String>,
+    #[serde(default)]
+    pub auto_record_apps: Vec<AutoRecordApp>,
 }
 
 impl Default for RecordingPreferences {
@@ -29,6 +37,7 @@ impl Default for RecordingPreferences {
             preferred_system_device: None,
             #[cfg(target_os = "macos")]
             system_audio_backend: Some("coreaudio".to_string()),
+            auto_record_apps: vec![],
         }
     }
 }
@@ -310,3 +319,71 @@ pub async fn get_audio_backend_info() -> Result<Vec<BackendInfo>, String> {
     }
 }
 
+/// Open a file picker in /Applications and return the bundle ID + display name
+/// of the selected .app bundle.
+#[tauri::command]
+pub async fn pick_application_for_auto_record<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Option<AutoRecordApp>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let picked = tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_directory("/Applications")
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| format!("Dialog task failed: {}", e))?;
+
+    let file_path = match picked {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+
+    let path_str = file_path
+        .as_path()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    if path_str.is_empty() {
+        return Ok(None);
+    }
+
+    // Derive fallback display name from the path stem (e.g. "Zoom.us.app" → "Zoom.us")
+    let fallback_name = std::path::Path::new(&path_str)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Unknown App".to_string());
+
+    // Read Info.plist to get bundle ID and localized display name.
+    // plist crate handles both XML and binary plist formats.
+    #[cfg(target_os = "macos")]
+    {
+        let plist_path = format!("{}/Contents/Info.plist", path_str);
+        match plist::from_file::<_, plist::Dictionary>(&plist_path) {
+            Ok(dict) => {
+                let bundle_id = dict
+                    .get("CFBundleIdentifier")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("No CFBundleIdentifier in {}", plist_path))?;
+
+                let display_name = dict
+                    .get("CFBundleDisplayName")
+                    .or_else(|| dict.get("CFBundleName"))
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string())
+                    .unwrap_or(fallback_name);
+
+                Ok(Some(AutoRecordApp { bundle_id, display_name }))
+            }
+            Err(e) => Err(format!("Failed to read Info.plist at {}: {}", plist_path, e)),
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("App picker is only supported on macOS".to_string())
+    }
+}
