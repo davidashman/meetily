@@ -109,6 +109,7 @@ async fn start_recording<R: Runtime>(
         Ok(_) => {
             RECORDING_FLAG.store(true, Ordering::SeqCst);
             tray::update_tray_menu(&app);
+            update_app_menu(&app);
 
             log_info!("Recording started successfully");
 
@@ -146,6 +147,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
         Ok(_) => {
             RECORDING_FLAG.store(false, Ordering::SeqCst);
             tray::update_tray_menu(&app);
+            update_app_menu(&app);
             overlay::close(&app);
 
             // Create the save directory if it doesn't exist
@@ -167,6 +169,7 @@ async fn stop_recording<R: Runtime>(app: AppHandle<R>, args: RecordingArgs) -> R
             // Still update the flag even if stopping failed
             RECORDING_FLAG.store(false, Ordering::SeqCst);
             tray::update_tray_menu(&app);
+            update_app_menu(&app);
             Err(format!("Failed to stop recording: {}", e))
         }
     }
@@ -281,6 +284,7 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
              mic_device_name, system_device_name, meeting_name);
 
     // Call the recording module functions that support meeting names
+    let display_name = meeting_name.clone().unwrap_or_else(|| "Recording".to_string());
     let recording_result = match (mic_device_name.clone(), system_device_name.clone()) {
         (None, None) => {
             log_info!(
@@ -310,6 +314,7 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
     match recording_result {
         Ok(_) => {
             log_info!("Recording started successfully via tauri command");
+            overlay::show_recording(&app, &display_name);
             Ok(())
         }
         Err(e) => {
@@ -344,6 +349,42 @@ fn is_system_dark_mode() -> bool {
         .unwrap_or(false)
 }
 
+// Stored references to the two File menu items that need dynamic updates.
+// Populated once during setup; updated in place via set_text/set_enabled.
+#[cfg(target_os = "macos")]
+static FILE_MENU_TOGGLE: std::sync::LazyLock<StdMutex<Option<tauri::menu::MenuItem<tauri::Wry>>>> =
+    std::sync::LazyLock::new(|| StdMutex::new(None));
+
+#[cfg(target_os = "macos")]
+static FILE_MENU_PAUSE_RESUME: std::sync::LazyLock<StdMutex<Option<tauri::menu::MenuItem<tauri::Wry>>>> =
+    std::sync::LazyLock::new(|| StdMutex::new(None));
+
+pub fn update_app_menu<R: Runtime>(_app: &AppHandle<R>) {
+    #[cfg(target_os = "macos")]
+    tauri::async_runtime::spawn(async {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let is_rec = audio::recording_commands::is_recording().await;
+        let is_paused = if is_rec {
+            audio::recording_commands::is_recording_paused().await
+        } else {
+            false
+        };
+
+        if let Ok(guard) = FILE_MENU_TOGGLE.lock() {
+            if let Some(item) = guard.as_ref() {
+                let _ = item.set_text(if is_rec { "Stop Recording" } else { "Start Recording" });
+            }
+        }
+        if let Ok(guard) = FILE_MENU_PAUSE_RESUME.lock() {
+            if let Some(item) = guard.as_ref() {
+                let _ = item.set_enabled(is_rec);
+                let _ = item.set_text(if is_paused { "Resume Recording" } else { "Pause Recording" });
+            }
+        }
+    });
+}
+
 pub fn run() {
     log::set_max_level(log::LevelFilter::Debug);
 
@@ -352,7 +393,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_window_state::Builder::default().with_denylist(&["mic-overlay"]).build())
         .manage(whisper_engine::parallel_commands::ParallelProcessorState::new())
         .manage(audio::init_system_audio_state())
         .manage(summary::summary_engine::ModelManagerState(Arc::new(tokio::sync::Mutex::new(None))))
@@ -370,22 +411,22 @@ pub fn run() {
                 log::error!("Failed to create system tray: {}", e);
             }
 
-            // Build macOS application menu with Settings... (Cmd+,)
+            // Build macOS application menu
             #[cfg(target_os = "macos")]
             {
-                use tauri::menu::{IconMenuItemBuilder, MenuBuilder, NativeIcon, SubmenuBuilder};
+                use tauri::menu::{
+                    IconMenuItemBuilder, MenuBuilder, MenuItemBuilder, NativeIcon, SubmenuBuilder,
+                };
                 let h = _app.handle().clone();
+
+                // App menu — Settings only (Import Audio moved to File menu)
                 let settings_item = IconMenuItemBuilder::with_id("app_settings", "Settings...")
                     .accelerator("Cmd+,")
-                    .build(&h)?;
-                let import_item = IconMenuItemBuilder::with_id("import_audio", "Import Audio...")
-                    .native_icon(NativeIcon::Share)
                     .build(&h)?;
                 let app_submenu = SubmenuBuilder::new(&h, "Meetily")
                     .about(None)
                     .separator()
                     .item(&settings_item)
-                    .item(&import_item)
                     .separator()
                     .hide()
                     .hide_others()
@@ -394,41 +435,89 @@ pub fn run() {
                     .quit()
                     .build()?;
 
-                // Window menu — Cmd+Shift+R reloads the webview without stopping a running recording
-                // (recording lives in the Rust backend, which is unaffected by a webview reload).
+                // File menu — recording controls + Import Audio
+                let toggle_item =
+                    MenuItemBuilder::with_id("file_recording_toggle", "Start Recording")
+                        .build(&h)?;
+                let pause_resume_item =
+                    MenuItemBuilder::with_id("file_pause_resume", "Pause Recording")
+                        .enabled(false)
+                        .build(&h)?;
+                *FILE_MENU_TOGGLE.lock().unwrap() = Some(toggle_item.clone());
+                *FILE_MENU_PAUSE_RESUME.lock().unwrap() = Some(pause_resume_item.clone());
+
+                let import_item = IconMenuItemBuilder::with_id("import_audio", "Import Audio...")
+                    .native_icon(NativeIcon::Share)
+                    .build(&h)?;
+                let file_submenu = SubmenuBuilder::new(&h, "File")
+                    .item(&toggle_item)
+                    .item(&pause_resume_item)
+                    .separator()
+                    .item(&import_item)
+                    .build()?;
+
+                // Window menu — Cmd+Shift+R reloads the webview without stopping a recording
+                let show_main_item =
+                    MenuItemBuilder::with_id("show_main_window", "Show Main Window").build(&h)?;
                 let reload_item = IconMenuItemBuilder::with_id("reload_window", "Reload Window")
                     .accelerator("Cmd+Shift+R")
                     .build(&h)?;
+                let devtools_item =
+                    MenuItemBuilder::with_id("open_devtools", "Developer Tools")
+                        .accelerator("Cmd+Option+I")
+                        .build(&h)?;
                 let window_submenu = SubmenuBuilder::new(&h, "Window")
                     .minimize()
+                    .item(&show_main_item)
                     .separator()
                     .item(&reload_item)
+                    .separator()
+                    .item(&devtools_item)
                     .build()?;
 
                 let menu = MenuBuilder::new(&h)
                     .item(&app_submenu)
+                    .item(&file_submenu)
                     .item(&window_submenu)
                     .build()?;
                 _app.set_menu(menu)?;
-                // Set the Settings... icon via SF Symbol so it adapts to dark/light mode
                 unsafe { set_settings_menu_icon_sf_symbol() };
                 _app.on_menu_event(|app, event| {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                        match event.id().as_ref() {
-                            "app_settings" => {
+                    match event.id().as_ref() {
+                        "app_settings" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
                                 let _ = window.eval("window.location.assign('/settings')");
                             }
-                            "import_audio" => {
+                        }
+                        "import_audio" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
                                 let _ = window.eval("window.openImportDialog && window.openImportDialog()");
                             }
-                            "reload_window" => {
-                                // Reload the webview only — the Rust recording backend keeps running.
+                        }
+                        "reload_window" => {
+                            if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.eval("location.reload()");
                             }
-                            _ => {}
                         }
+                        "file_recording_toggle" => {
+                            tray::toggle_recording_handler(app);
+                        }
+                        "file_pause_resume" => {
+                            tray::pause_resume_handler(app);
+                        }
+                        "show_main_window" => {
+                            tray::focus_main_window(app);
+                        }
+                        "open_devtools" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                window.open_devtools();
+                            }
+                        }
+                        _ => {}
                     }
                 });
             }

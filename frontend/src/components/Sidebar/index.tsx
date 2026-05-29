@@ -101,20 +101,6 @@ const Sidebar: React.FC = () => {
     return () => { delete (window as any).openImportDialog; };
   }, [openImportDialog]);
 
-  const [barHeights, setBarHeights] = useState(['58%', '76%', '58%']);
-  useEffect(() => {
-    if (isRecording) {
-      const interval = setInterval(() => {
-        setBarHeights([
-          Math.random() * 20 + 10 + 'px',
-          Math.random() * 20 + 10 + 'px',
-          Math.random() * 20 + 10 + 'px',
-        ]);
-      }, 300);
-      return () => clearInterval(interval);
-    }
-  }, [isRecording]);
-
   const isRecordingDisabled =
     status === RecordingStatus.STOPPING ||
     status === RecordingStatus.PROCESSING_TRANSCRIPTS ||
@@ -625,7 +611,6 @@ const Sidebar: React.FC = () => {
         <div className="flex-shrink-0 p-2 pt-4 flex flex-col items-center">
           <RecordingControls
             isRecording={isRecording}
-            barHeights={barHeights}
             onRecordingStop={(callApi = true) => {
               if ((window as any).handleRecordingStop) {
                 (window as any).handleRecordingStop(callApi);
@@ -640,6 +625,7 @@ const Sidebar: React.FC = () => {
             selectedDevices={selectedDevices}
             meetingName={meetingTitle}
           />
+
           <div className="w-full flex items-center justify-center px-3 py-1 text-xs text-muted-foreground">
             v0.3.0
           </div>

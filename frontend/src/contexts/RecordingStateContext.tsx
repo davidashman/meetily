@@ -30,6 +30,7 @@ interface RecordingState {
   isActive: boolean;              // Is actively recording (recording && !paused)
   recordingDuration: number | null;  // Total duration including pauses
   activeDuration: number | null;     // Active recording time (excluding pauses)
+  elapsedSeconds: number;            // Seconds elapsed since recording started
 
   // NEW: Lifecycle status
   status: RecordingStatus;
@@ -68,11 +69,13 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
     isActive: false,
     recordingDuration: null,
     activeDuration: null,
+    elapsedSeconds: 0,
     status: RecordingStatus.IDLE,  // NEW: Initialize with IDLE status
     statusMessage: undefined,       // NEW: No message initially
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const elapsedIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stopInProgressRef = useRef<boolean>(false);
 
   // NEW: Status setter with logging
@@ -101,6 +104,10 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
         isActive: backendState.is_active,
         recordingDuration: backendState.recording_duration,
         activeDuration: backendState.active_duration,
+        // Initialize elapsed from backend when we first detect an ongoing recording
+        ...(backendState.is_recording && !prev.isRecording && backendState.recording_duration != null
+          ? { elapsedSeconds: Math.round(backendState.recording_duration) }
+          : {}),
       }));
 
       console.log('[RecordingStateContext] Synced with backend:', backendState);
@@ -133,6 +140,26 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
     }
   };
 
+  // Elapsed timer — increments every second while isRecording is true
+  useEffect(() => {
+    if (!state.isRecording) {
+      if (elapsedIntervalRef.current) {
+        clearInterval(elapsedIntervalRef.current);
+        elapsedIntervalRef.current = null;
+      }
+      return;
+    }
+    elapsedIntervalRef.current = setInterval(() => {
+      setState(prev => ({ ...prev, elapsedSeconds: prev.elapsedSeconds + 1 }));
+    }, 1000);
+    return () => {
+      if (elapsedIntervalRef.current) {
+        clearInterval(elapsedIntervalRef.current);
+        elapsedIntervalRef.current = null;
+      }
+    };
+  }, [state.isRecording]);
+
   /**
    * Set up event listeners for backend state changes
    */
@@ -150,6 +177,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
             isRecording: true,
             isPaused: false,
             isActive: true,
+            elapsedSeconds: 0,
             status: RecordingStatus.RECORDING,  // NEW: Set status to RECORDING
           }));
           startPolling();
@@ -179,6 +207,7 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
               isActive: false,
               recordingDuration: null,
               activeDuration: null,
+              elapsedSeconds: 0,
             };
           });
           stopPolling();

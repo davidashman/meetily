@@ -51,7 +51,7 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, item_id: &str) {
         _ => {}
     }
 }
-fn toggle_recording_handler<R: Runtime>(app: &AppHandle<R>) {
+pub fn toggle_recording_handler<R: Runtime>(app: &AppHandle<R>) {
     focus_main_window(app);
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -87,9 +87,7 @@ fn toggle_recording_handler<R: Runtime>(app: &AppHandle<R>) {
             match stop_result {
                 Ok(_) => {
                     log::info!("Tray toggle: Recording stopped successfully");
-
-                    // Trigger frontend post-processing via event (works from any page)
-                    // (SQLite save, navigation, analytics)
+                    crate::overlay::close(&app_clone);
                     if let Err(e) = app_clone.emit("recording-stop-complete", true) {
                         log::error!("Tray toggle: Failed to emit recording-stop-complete event: {}", e);
                     }
@@ -183,9 +181,7 @@ fn stop_recording_handler<R: Runtime>(app: &AppHandle<R>) {
         match stop_result {
             Ok(_) => {
                 log::info!("Tray: Recording stopped successfully");
-
-                // Trigger frontend post-processing via event (works from any page)
-                // (SQLite save, navigation, analytics)
+                crate::overlay::close(&app_clone);
                 if let Err(e) = app_clone.emit("recording-stop-complete", true) {
                     log::error!("Tray: Failed to emit recording-stop-complete event: {}", e);
                 }
@@ -395,7 +391,7 @@ fn build_menu<R: Runtime>(
 
     builder
         .item(&PredefinedMenuItem::separator(app)?)
-        .item(&MenuItemBuilder::with_id("open_window", "Open Main Window").build(app)?)
+        .item(&MenuItemBuilder::with_id("open_window", "Show Main Window").build(app)?)
         .item(&MenuItemBuilder::with_id("settings", "Settings").build(app)?)
         .item(&MenuItemBuilder::with_id("check_updates", "Check for Updates").build(app)?)
         .item(&PredefinedMenuItem::separator(app)?)
@@ -403,7 +399,31 @@ fn build_menu<R: Runtime>(
         .build()
 }
 
-fn focus_main_window<R: Runtime>(app: &AppHandle<R>) {
+pub fn pause_resume_handler<R: Runtime>(app: &AppHandle<R>) {
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let is_paused = crate::audio::recording_commands::is_recording_paused().await;
+        if is_paused {
+            set_tray_state(&app_clone, RecordingState::Resuming);
+            if let Err(e) = crate::audio::recording_commands::resume_recording(app_clone.clone()).await {
+                log::error!("Failed to resume recording from menu: {}", e);
+                update_tray_menu_async(&app_clone).await;
+            } else {
+                log::info!("Recording resumed from menu");
+            }
+        } else {
+            set_tray_state(&app_clone, RecordingState::Pausing);
+            if let Err(e) = crate::audio::recording_commands::pause_recording(app_clone.clone()).await {
+                log::error!("Failed to pause recording from menu: {}", e);
+                update_tray_menu_async(&app_clone).await;
+            } else {
+                log::info!("Recording paused from menu");
+            }
+        }
+    });
+}
+
+pub fn focus_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();

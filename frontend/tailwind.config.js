@@ -13,6 +13,9 @@ module.exports = {
   				'var(--font-source-sans-3)'
   			]
   		},
+		fontSize: {
+			xxs: '0.6em'
+		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

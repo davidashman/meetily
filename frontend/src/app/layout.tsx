@@ -72,10 +72,10 @@ const IS_OVERLAY =
     window.location.pathname === '/overlay.html' ||
     window.location.pathname.endsWith('/overlay.html'))
 
-// Minimal layout for the overlay window — no providers, no sidebar.
+// Minimal layout for the overlay window — no sidebar, but needs RecordingStateProvider for RecordingControls.
 function OverlayLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" style={{ background: 'transparent' }}>
+    <html lang="en" className="dark" style={{ background: 'transparent' }}>
       <head>
         {/* Applied before any CSS/JS to prevent white flash on window open */}
         <style>{`html, body { background: transparent !important; margin: 0; padding: 0; }`}</style>
@@ -84,7 +84,9 @@ function OverlayLayout({ children }: { children: React.ReactNode }) {
         className={`${sourceSans3.variable} font-sans`}
         style={{ background: 'transparent', margin: 0, overflow: 'hidden' }}
       >
-        {children}
+        <RecordingStateProvider>
+          {children}
+        </RecordingStateProvider>
       </body>
     </html>
   )
