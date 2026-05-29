@@ -55,26 +55,18 @@ impl RecordingManager {
     // Remove app handle storage for now - will be passed directly when saving
 
     /// Start recording with specified devices
-    ///
-    /// # Arguments
-    /// * `microphone_device` - Optional microphone device to use
-    /// * `system_device` - Optional system audio device to use
-    /// * `auto_save` - Whether to save audio checkpoints (true) or just transcripts/metadata (false)
     pub async fn start_recording(
         &mut self,
         microphone_device: Option<Arc<AudioDevice>>,
         system_device: Option<Arc<AudioDevice>>,
-        auto_save: bool,
     ) -> Result<mpsc::UnboundedReceiver<AudioChunk>> {
-        info!("Starting recording manager (auto_save: {})", auto_save);
+        info!("Starting recording manager");
 
         // Set up transcription channel
         let (transcription_sender, transcription_receiver) = mpsc::unbounded_channel::<AudioChunk>();
 
-        // CRITICAL FIX: Create recording sender for pre-mixed audio from pipeline
-        // Pipeline will mix mic + system audio professionally and send to this channel
-        // Pass auto_save to control whether audio checkpoints are created
-        let recording_sender = self.recording_saver.start_accumulation(auto_save);
+        // Create recording sender — audio chunks are drained and discarded, transcripts saved
+        let recording_sender = self.recording_saver.start_accumulation();
 
         // Start recording state first
         self.state.start_recording()?;
@@ -141,87 +133,35 @@ impl RecordingManager {
         Ok(transcription_receiver)
     }
 
-    /// Start recording with default devices and auto_save setting
-    ///
-    /// # Arguments
-    /// * `auto_save` - Whether to save audio checkpoints (true) or just transcripts/metadata (false)
-    ///
-    /// # Platform-Specific Behavior
-    ///
-    /// **macOS**: Uses smart device selection that automatically overrides
-    /// Bluetooth devices to built-in wired devices for stable, consistent sample rates.
-    /// This prevents Core Audio/ScreenCaptureKit from delivering variable sample rate
-    /// streams that cause sync issues when mixing mic + system audio.
-    ///
-    /// **Windows/Linux**: Uses system default devices directly without override.
-    ///
-    /// # macOS Bluetooth Override Strategy
-    ///
-    /// - Microphone: If Bluetooth → Use built-in MacBook mic
-    /// - Speaker: If Bluetooth → Use built-in MacBook speaker (for ScreenCaptureKit)
-    /// - Each device is checked INDEPENDENTLY
-    ///
-    /// Rationale: Bluetooth devices on macOS can have variable sample rates as Core Audio
-    /// and the Bluetooth stack may resample dynamically. Built-in devices provide
-    /// fixed, consistent sample rates for reliable audio mixing.
-    ///
-    /// User still hears audio via Bluetooth (playback), but recording captures
-    /// via stable wired path for best quality.
-    pub async fn start_recording_with_defaults_and_auto_save(&mut self, auto_save: bool) -> Result<mpsc::UnboundedReceiver<AudioChunk>> {
+    /// Start recording with default devices (Bluetooth override on macOS)
+    pub async fn start_recording_with_defaults(&mut self) -> Result<mpsc::UnboundedReceiver<AudioChunk>> {
         #[cfg(target_os = "macos")]
         {
             info!("🎙️ [macOS] Starting recording with smart device selection (Bluetooth override enabled)");
-
-            // Get safe recording devices with automatic Bluetooth fallback
-            // This function handles all the detection and override logic for macOS
             let (microphone_device, system_device) = get_safe_recording_devices_macos()?;
-
-            // Wrap in Arc for sharing across threads
             let microphone_device = microphone_device.map(Arc::new);
             let system_device = system_device.map(Arc::new);
-
-            // Ensure at least microphone is available
             if microphone_device.is_none() {
                 return Err(anyhow::anyhow!("❌ No microphone device available for recording"));
             }
-
-            // Start recording with selected devices and auto_save setting
-            self.start_recording(microphone_device, system_device, auto_save).await
+            self.start_recording(microphone_device, system_device).await
         }
 
         #[cfg(not(target_os = "macos"))]
         {
             info!("Starting recording with default devices");
-
-            // Get default devices (no Bluetooth override on Windows/Linux)
             let microphone_device = match default_input_device() {
-                Ok(device) => {
-                    info!("Using default microphone: {}", device.name);
-                    Some(Arc::new(device))
-                }
-                Err(e) => {
-                    warn!("No default microphone available: {}", e);
-                    None
-                }
+                Ok(device) => { info!("Using default microphone: {}", device.name); Some(Arc::new(device)) }
+                Err(e) => { warn!("No default microphone available: {}", e); None }
             };
-
             let system_device = match default_output_device() {
-                Ok(device) => {
-                    info!("Using default system audio: {}", device.name);
-                    Some(Arc::new(device))
-                }
-                Err(e) => {
-                    warn!("No default system audio available: {}", e);
-                    None
-                }
+                Ok(device) => { info!("Using default system audio: {}", device.name); Some(Arc::new(device)) }
+                Err(e) => { warn!("No default system audio available: {}", e); None }
             };
-
-            // Ensure at least microphone is available
             if microphone_device.is_none() {
                 return Err(anyhow::anyhow!("No microphone device available"));
             }
-
-            self.start_recording(microphone_device, system_device, auto_save).await
+            self.start_recording(microphone_device, system_device).await
         }
     }
 

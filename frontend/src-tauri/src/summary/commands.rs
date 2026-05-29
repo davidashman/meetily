@@ -1,8 +1,9 @@
 use crate::database::repositories::{
-    meeting::MeetingsRepository, summary::SummaryProcessesRepository,
-    transcript_chunk::TranscriptChunksRepository,
+    analysis::AnalysisProcessesRepository, meeting::MeetingsRepository,
+    summary::SummaryProcessesRepository, transcript_chunk::TranscriptChunksRepository,
 };
 use crate::state::AppState;
+use crate::summary::analysis_service::AnalysisService;
 use crate::summary::service::SummaryService;
 use log::{error as log_error, info as log_info, warn as log_warn};
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,25 @@ pub async fn api_save_meeting_summary<R: Runtime>(
     match SummaryProcessesRepository::update_meeting_summary(pool, &meeting_id, &summary).await {
         Ok(true) => {
             log_info!("Summary saved successfully for meeting_id: {}", meeting_id);
+
+            // Write summary.md to the meeting folder alongside transcripts.json and metadata.json
+            if let Some(markdown) = summary.get("markdown").and_then(|v| v.as_str()) {
+                match MeetingsRepository::get_meeting_metadata(pool, &meeting_id).await {
+                    Ok(Some(meeting)) => {
+                        if let Some(folder_path) = meeting.folder_path {
+                            let summary_path = std::path::Path::new(&folder_path).join("summary.md");
+                            if let Err(e) = std::fs::write(&summary_path, markdown) {
+                                log_warn!("Failed to write summary.md for {}: {}", meeting_id, e);
+                            } else {
+                                log_info!("summary.md written to {}", summary_path.display());
+                            }
+                        }
+                    }
+                    Ok(None) => log_warn!("Meeting {} not found when writing summary.md", meeting_id),
+                    Err(e) => log_warn!("Failed to look up folder_path for {}: {}", meeting_id, e),
+                }
+            }
+
             Ok(serde_json::json!({
                 "message": "Meeting summary saved successfully"
             }))
@@ -215,13 +235,19 @@ pub async fn api_process_transcript<R: Runtime>(
 
     log_info!("✓ Transcript chunks saved for meeting_id: {}", &m_id);
 
-    // Spawn background task for actual processing
+    // Clone what both background tasks need
+    let app_for_analysis = app.clone();
+    let pool_for_analysis = pool.clone();
+    let text_for_analysis = text.clone();
+    let analysis_meeting_id = m_id.clone();
+
+    // Spawn summary background task
     let meeting_id_clone = m_id.clone();
     tauri::async_runtime::spawn(async move {
         SummaryService::process_transcript_background(
             app,
             pool,
-            meeting_id_clone.clone(),
+            meeting_id_clone,
             text,
             model,
             model_name,
@@ -231,7 +257,18 @@ pub async fn api_process_transcript<R: Runtime>(
         .await;
     });
 
-    log_info!("🚀 Background task spawned for meeting_id: {}", &m_id);
+    // Spawn analysis in parallel from the same transcript
+    tauri::async_runtime::spawn(async move {
+        AnalysisService::process_analysis_background(
+            app_for_analysis,
+            pool_for_analysis,
+            analysis_meeting_id,
+            text_for_analysis,
+        )
+        .await;
+    });
+
+    log_info!("🚀 Background tasks spawned for meeting_id: {}", &m_id);
 
     Ok(ProcessTranscriptResponse {
         message: "Summary generation started".to_string(),
@@ -273,5 +310,80 @@ pub async fn api_cancel_summary<R: Runtime>(
             "message": "No active summary generation to cancel",
             "meeting_id": meeting_id,
         }))
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AnalysisResponse {
+    pub status: String,
+    pub markdown: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Retrieves the current analysis status and result for a meeting
+#[tauri::command]
+pub async fn api_get_analysis<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<AnalysisResponse, String> {
+    log_info!("api_get_analysis called for meeting_id: {}", meeting_id);
+    let pool = state.db_manager.pool();
+
+    match AnalysisProcessesRepository::get_analysis(pool, &meeting_id).await {
+        Ok(Some(process)) => Ok(AnalysisResponse {
+            status: process.status.to_lowercase(),
+            markdown: process.result,
+            error: process.error,
+        }),
+        Ok(None) => Ok(AnalysisResponse {
+            status: "idle".to_string(),
+            markdown: None,
+            error: None,
+        }),
+        Err(e) => Err(format!("Failed to retrieve analysis: {}", e)),
+    }
+}
+
+/// Manually triggers analysis generation for a meeting (re-run)
+#[tauri::command]
+pub async fn api_process_analysis<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    text: String,
+) -> Result<serde_json::Value, String> {
+    log_info!("api_process_analysis called for meeting_id: {}", meeting_id);
+
+    let pool = state.db_manager.pool().clone();
+
+    tauri::async_runtime::spawn(async move {
+        AnalysisService::process_analysis_background(app, pool, meeting_id, text).await;
+    });
+
+    Ok(serde_json::json!({ "message": "Analysis started" }))
+}
+
+/// Cancels an ongoing analysis generation
+#[tauri::command]
+pub async fn api_cancel_analysis<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<serde_json::Value, String> {
+    log_info!("api_cancel_analysis called for meeting_id: {}", meeting_id);
+
+    let cancelled = AnalysisService::cancel_analysis(&meeting_id);
+
+    if cancelled {
+        let pool = state.db_manager.pool();
+        if let Err(e) =
+            AnalysisProcessesRepository::update_process_cancelled(pool, &meeting_id).await
+        {
+            return Err(format!("Failed to update cancellation status: {}", e));
+        }
+        Ok(serde_json::json!({ "message": "Analysis cancelled", "meeting_id": meeting_id }))
+    } else {
+        Ok(serde_json::json!({ "message": "No active analysis to cancel", "meeting_id": meeting_id }))
     }
 }

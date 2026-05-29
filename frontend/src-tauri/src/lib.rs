@@ -114,7 +114,7 @@ async fn start_recording<R: Runtime>(
             log_info!("Recording started successfully");
 
             // Show overlay in recording mode (creates it if not already open from auto-detect).
-            overlay::show_recording(&app, meeting_name.as_deref().unwrap_or("Recording"));
+            overlay::show_recording(&app, meeting_name.as_deref().unwrap_or("Listening"));
 
             Ok(())
         }
@@ -284,7 +284,7 @@ async fn start_recording_with_devices_and_meeting<R: Runtime>(
              mic_device_name, system_device_name, meeting_name);
 
     // Call the recording module functions that support meeting names
-    let display_name = meeting_name.clone().unwrap_or_else(|| "Recording".to_string());
+    let display_name = meeting_name.clone().unwrap_or_else(|| "Listening".to_string());
     let recording_result = match (mic_device_name.clone(), system_device_name.clone()) {
         (None, None) => {
             log_info!(
@@ -373,13 +373,13 @@ pub fn update_app_menu<R: Runtime>(_app: &AppHandle<R>) {
 
         if let Ok(guard) = FILE_MENU_TOGGLE.lock() {
             if let Some(item) = guard.as_ref() {
-                let _ = item.set_text(if is_rec { "Stop Recording" } else { "Start Recording" });
+                let _ = item.set_text(if is_rec { "Stop Listening" } else { "Start Listening" });
             }
         }
         if let Ok(guard) = FILE_MENU_PAUSE_RESUME.lock() {
             if let Some(item) = guard.as_ref() {
                 let _ = item.set_enabled(is_rec);
-                let _ = item.set_text(if is_paused { "Resume Recording" } else { "Pause Recording" });
+                let _ = item.set_text(if is_paused { "Resume Listening" } else { "Pause Listening" });
             }
         }
     });
@@ -437,10 +437,10 @@ pub fn run() {
 
                 // File menu — recording controls + Import Audio
                 let toggle_item =
-                    MenuItemBuilder::with_id("file_recording_toggle", "Start Recording")
+                    MenuItemBuilder::with_id("file_recording_toggle", "Start Listening")
                         .build(&h)?;
                 let pause_resume_item =
-                    MenuItemBuilder::with_id("file_pause_resume", "Pause Recording")
+                    MenuItemBuilder::with_id("file_pause_resume", "Pause Listening")
                         .enabled(false)
                         .build(&h)?;
                 *FILE_MENU_TOGGLE.lock().unwrap() = Some(toggle_item.clone());
@@ -737,6 +737,10 @@ pub fn run() {
             summary::commands::api_get_summary,
             summary::commands::api_save_meeting_summary,
             summary::commands::api_cancel_summary,
+            // Analysis commands
+            summary::commands::api_get_analysis,
+            summary::commands::api_process_analysis,
+            summary::commands::api_cancel_analysis,
             // Template commands
             summary::template_commands::api_list_templates,
             summary::template_commands::api_get_template_details,
@@ -753,9 +757,6 @@ pub fn run() {
             openrouter::get_openrouter_models,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,
-            audio::recording_preferences::get_default_recordings_folder_path,
-            audio::recording_preferences::open_recordings_folder,
-            audio::recording_preferences::select_recording_folder,
             audio::recording_preferences::get_available_audio_backends,
             audio::recording_preferences::get_current_audio_backend,
             audio::recording_preferences::set_audio_backend,

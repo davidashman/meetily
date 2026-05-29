@@ -131,8 +131,8 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         });
       } else {
         setDeviceError({
-          title: 'Recording Failed',
-          message: 'Unable to start recording. Please check your audio device settings and try again.'
+          title: 'Listening Failed',
+          message: 'Unable to start listening. Please check your audio device settings and try again.'
         });
       }
     }
@@ -298,7 +298,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                 )}
               </div>
             </TooltipTrigger>
-            <TooltipContent><p>{isPaused ? 'Resume recording' : 'Pause recording'}</p></TooltipContent>
+            <TooltipContent><p>{isPaused ? 'Resume listening' : 'Pause listening'}</p></TooltipContent>
           </Tooltip>
         </div>
 
@@ -316,7 +316,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               }}
               disabled={isStopping || isPausing || isResuming}
               className={`w-12 h-12 flex items-center justify-center rounded-full text-white transition-colors relative flex-shrink-0 ${
-                isStopping || isPausing || isResuming ? 'bg-gray-700' : 'bg-red-500 hover:bg-red-600'
+                isStopping || isPausing || isResuming ? 'bg-gray-700' : isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'
               }`}
           >
                {isValidatingModel ? (
@@ -333,7 +333,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               )}
             </button>
           </TooltipTrigger>
-          <TooltipContent><p>Stop recording</p></TooltipContent>
+          <TooltipContent><p>Stop listening</p></TooltipContent>
         </Tooltip>
 
         <div 

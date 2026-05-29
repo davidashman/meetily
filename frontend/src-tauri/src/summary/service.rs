@@ -319,6 +319,22 @@ impl SummaryService {
                         "Summary saved successfully for meeting_id: {}",
                         meeting_id
                     );
+
+                    // Write summary.md to the meeting folder alongside transcripts.json and metadata.json
+                    match MeetingsRepository::get_meeting_metadata(&pool, &meeting_id).await {
+                        Ok(Some(meeting)) => {
+                            if let Some(folder_path) = meeting.folder_path {
+                                let summary_path = std::path::Path::new(&folder_path).join("summary.md");
+                                if let Err(e) = std::fs::write(&summary_path, &final_markdown) {
+                                    warn!("Failed to write summary.md for {}: {}", meeting_id, e);
+                                } else {
+                                    info!("summary.md written to {}", summary_path.display());
+                                }
+                            }
+                        }
+                        Ok(None) => warn!("Meeting {} not found when writing summary.md", meeting_id),
+                        Err(e) => warn!("Failed to look up folder_path for {}: {}", meeting_id, e),
+                    }
                 }
             }
             Err(e) => {

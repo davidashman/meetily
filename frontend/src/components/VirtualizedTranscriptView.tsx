@@ -267,7 +267,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                 </svg>
                             </div>
                             <p className="text-3xl font-bold tracking-tight">Welcome to meetily!</p>
-                            <p className="text-base mt-3 text-gray-400">Start recording to see live transcription</p>
+                            <p className="text-base mt-3 text-gray-400">Start listening to see live transcription</p>
                         </>
                     )}
                 </motion.div>

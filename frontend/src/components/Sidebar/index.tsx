@@ -117,7 +117,7 @@ const Sidebar: React.FC = () => {
 
   const fakeItemLabel =
     status === RecordingStatus.STARTING || status === RecordingStatus.RECORDING
-      ? 'Recording...'
+      ? 'Listening...'
       : 'Processing...';
 
   const isFakeItemActive = showFakeRecordingItem && pathname === '/';
@@ -593,8 +593,8 @@ const Sidebar: React.FC = () => {
                 }}
               >
                 <div className="flex items-center w-full">
-                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-red-500/20">
-                    <Mic className="w-3.5 h-3.5 text-red-500" />
+                  <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-blue-500/20">
+                    <Mic className="w-3.5 h-3.5 text-blue-500" />
                   </div>
                   <span className="flex-1 break-words text-foreground">{fakeItemLabel}</span>
                 </div>

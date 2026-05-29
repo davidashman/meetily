@@ -230,15 +230,9 @@ pub fn set_tray_state<R: Runtime>(app: &AppHandle<R>, state: RecordingState) {
     }
 }
 
-fn update_tray_icon_for_state<R: Runtime>(tray: &tauri::tray::TrayIcon<R>, state: &RecordingState) {
-    let is_recording = matches!(state, RecordingState::Recording | RecordingState::Pausing | RecordingState::Resuming);
-    if is_recording {
-        let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-icon-recording.png")));
-        let _ = tray.set_icon_as_template(false);
-    } else {
-        let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-icon.png")));
-        let _ = tray.set_icon_as_template(true);
-    }
+fn update_tray_icon_for_state<R: Runtime>(tray: &tauri::tray::TrayIcon<R>, _state: &RecordingState) {
+    let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-icon.png")));
+    let _ = tray.set_icon_as_template(true);
 }
 
 async fn get_current_recording_state() -> RecordingState {
@@ -339,19 +333,19 @@ fn build_menu<R: Runtime>(
         match state {
             RecordingState::Stopped => {
                 builder = builder
-                    .item(&MenuItemBuilder::with_id("toggle_recording", "Start Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("toggle_recording", "Start Listening").build(app)?);
             }
             RecordingState::Starting => {
                 builder = builder.item(
-                    &MenuItemBuilder::new("🔄 Starting Recording...")
+                    &MenuItemBuilder::new("🔄 Starting Listening...")
                         .enabled(false)
                         .build(app)?,
                 );
             }
             RecordingState::Recording => {
                 builder = builder
-                    .item(&MenuItemBuilder::with_id("pause_recording", "⏸ Pause Recording").build(app)?)
-                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("pause_recording", "⏸ Pause Listening").build(app)?)
+                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Listening").build(app)?);
             }
             RecordingState::Pausing => {
                 builder = builder
@@ -360,15 +354,15 @@ fn build_menu<R: Runtime>(
                             .enabled(false)
                             .build(app)?,
                     )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Listening").build(app)?);
             }
             RecordingState::Paused => {
                 builder = builder
                     .item(
-                        &MenuItemBuilder::with_id("resume_recording", "▶ Resume Recording")
+                        &MenuItemBuilder::with_id("resume_recording", "▶ Resume Listening")
                             .build(app)?,
                     )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Listening").build(app)?);
             }
             RecordingState::Resuming => {
                 builder = builder
@@ -377,7 +371,7 @@ fn build_menu<R: Runtime>(
                             .enabled(false)
                             .build(app)?,
                     )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Listening").build(app)?);
             }
             RecordingState::Stopping => {
                 builder = builder.item(

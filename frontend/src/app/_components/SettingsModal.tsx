@@ -302,13 +302,13 @@ export function SettingsModals({
     {/* Error Alert Modal */}
     {modals.errorAlert && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <Alert className="max-w-md mx-4 border-red-200 bg-card shadow-xl">
-          <AlertTitle className="text-red-800">Recording Stopped</AlertTitle>
-          <AlertDescription className="text-red-700">
+        <Alert className="max-w-md mx-4 border-blue-200 bg-card shadow-xl">
+          <AlertTitle className="text-blue-800">Listening Stopped</AlertTitle>
+          <AlertDescription className="text-blue-700">
             {messages.errorAlert}
             <button
               onClick={() => onClose('errorAlert')}
-              className="ml-2 text-red-600 hover:text-red-800 underline"
+              className="ml-2 text-blue-600 hover:text-blue-800 underline"
             >
               Dismiss
             </button>

@@ -18,7 +18,6 @@ export interface OllamaModel {
 export interface StorageLocations {
   database: string;
   models: string;
-  recordings: string;
 }
 
 interface ConfigContextType {
@@ -68,7 +67,6 @@ interface ConfigContextType {
   storageLocations: StorageLocations | null;
   isLoadingPreferences: boolean;
   loadPreferences: () => Promise<void>;
-  updateRecordingsPath: (path: string) => void;
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -402,17 +400,14 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     isLoadingRef.current = true;
     setIsLoadingPreferences(true);
     try {
-      // Load storage locations
-      const [dbDir, modelsDir, recordingPrefs] = await Promise.all([
+      const [dbDir, modelsDir] = await Promise.all([
         invoke<string>('get_database_directory'),
         invoke<string>('whisper_get_models_directory'),
-        invoke<{ save_folder: string }>('get_recording_preferences')
       ]);
 
       setStorageLocations({
         database: dbDir,
         models: modelsDir,
-        recordings: recordingPrefs.save_folder
       });
 
       // Mark as loaded
@@ -435,10 +430,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     invoke('set_language_preference', { language: lang }).catch(err =>
       console.error('Failed to sync language preference to Rust:', err)
     );
-  }, []);
-
-  const updateRecordingsPath = useCallback((path: string) => {
-    setStorageLocations(prev => prev ? { ...prev, recordings: path } : null);
   }, []);
 
   const value: ConfigContextType = useMemo(() => ({
@@ -464,7 +455,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     storageLocations,
     isLoadingPreferences,
     loadPreferences,
-    updateRecordingsPath,
   }), [
     modelConfig,
     isAutoSummary,
@@ -485,7 +475,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     storageLocations,
     isLoadingPreferences,
     loadPreferences,
-    updateRecordingsPath,
   ]);
 
   return (

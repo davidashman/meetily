@@ -8,6 +8,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { TranscriptPanel } from '@/components/MeetingDetails/TranscriptPanel';
 import { SummaryPanel } from '@/components/MeetingDetails/SummaryPanel';
+import { AnalysisPanel } from '@/components/MeetingDetails/AnalysisPanel';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ModelConfig } from '@/components/ModelSettingsModal';
 
 // Custom hooks
@@ -57,6 +59,7 @@ export default function PageContent({
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
+  const [rightPanelTab, setRightPanelTab] = useState<'summary' | 'analysis'>('summary');
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -192,41 +195,61 @@ export default function PageContent({
           meetingFolderPath={meeting.folder_path}
           onRefetchTranscripts={onRefetchTranscripts}
         />
-        <SummaryPanel
-          meeting={meeting}
-          meetingTitle={meetingData.meetingTitle}
-          onTitleChange={meetingData.handleTitleChange}
-          isEditingTitle={meetingData.isEditingTitle}
-          onStartEditTitle={() => meetingData.setIsEditingTitle(true)}
-          onFinishEditTitle={() => meetingData.setIsEditingTitle(false)}
-          isTitleDirty={meetingData.isTitleDirty}
-          summaryRef={meetingData.blockNoteSummaryRef}
-          isSaving={meetingData.isSaving}
-          onSaveAll={meetingData.saveAllChanges}
-          onCopySummary={copyOperations.handleCopySummary}
-          onOpenFolder={meetingOperations.handleOpenMeetingFolder}
-          aiSummary={meetingData.aiSummary}
-          summaryStatus={summaryGeneration.summaryStatus}
-          transcripts={meetingData.transcripts}
-          modelConfig={modelConfig}
-          setModelConfig={setModelConfig}
-          onSaveModelConfig={handleSaveModelConfig}
-          onGenerateSummary={summaryGeneration.handleGenerateSummary}
-          onStopGeneration={summaryGeneration.handleStopGeneration}
-          customPrompt={customPrompt}
-          summaryResponse={summaryResponse}
-          onSaveSummary={meetingData.handleSaveSummary}
-          onSummaryChange={meetingData.handleSummaryChange}
-          onDirtyChange={meetingData.setIsSummaryDirty}
-          summaryError={summaryGeneration.summaryError}
-          onRegenerateSummary={summaryGeneration.handleRegenerateSummary}
-          getSummaryStatusMessage={summaryGeneration.getSummaryStatusMessage}
-          availableTemplates={templates.availableTemplates}
-          selectedTemplate={templates.selectedTemplate}
-          onTemplateSelect={templates.handleTemplateSelection}
-          isModelConfigLoading={false}
-          onOpenModelSettings={handleRegisterModalOpen}
-        />
+        {/* Right panel: Summary or Analysis */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden border-l border-border">
+          {/* Tab bar */}
+          <div className="flex items-center px-4 py-2 border-b border-border shrink-0">
+            <Tabs value={rightPanelTab} onValueChange={(v) => setRightPanelTab(v as 'summary' | 'analysis')}>
+              <TabsList className="h-7">
+                <TabsTrigger value="summary" className="text-xs px-3 h-6">Summary</TabsTrigger>
+                <TabsTrigger value="analysis" className="text-xs px-3 h-6">Analysis</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          {/* Panel content */}
+          {rightPanelTab === 'summary' ? (
+            <SummaryPanel
+              meeting={meeting}
+              meetingTitle={meetingData.meetingTitle}
+              onTitleChange={meetingData.handleTitleChange}
+              isEditingTitle={meetingData.isEditingTitle}
+              onStartEditTitle={() => meetingData.setIsEditingTitle(true)}
+              onFinishEditTitle={() => meetingData.setIsEditingTitle(false)}
+              isTitleDirty={meetingData.isTitleDirty}
+              summaryRef={meetingData.blockNoteSummaryRef}
+              isSaving={meetingData.isSaving}
+              onSaveAll={meetingData.saveAllChanges}
+              onCopySummary={copyOperations.handleCopySummary}
+              onOpenFolder={meetingOperations.handleOpenMeetingFolder}
+              aiSummary={meetingData.aiSummary}
+              summaryStatus={summaryGeneration.summaryStatus}
+              transcripts={meetingData.transcripts}
+              modelConfig={modelConfig}
+              setModelConfig={setModelConfig}
+              onSaveModelConfig={handleSaveModelConfig}
+              onGenerateSummary={summaryGeneration.handleGenerateSummary}
+              onStopGeneration={summaryGeneration.handleStopGeneration}
+              customPrompt={customPrompt}
+              summaryResponse={summaryResponse}
+              onSaveSummary={meetingData.handleSaveSummary}
+              onSummaryChange={meetingData.handleSummaryChange}
+              onDirtyChange={meetingData.setIsSummaryDirty}
+              summaryError={summaryGeneration.summaryError}
+              onRegenerateSummary={summaryGeneration.handleRegenerateSummary}
+              getSummaryStatusMessage={summaryGeneration.getSummaryStatusMessage}
+              availableTemplates={templates.availableTemplates}
+              selectedTemplate={templates.selectedTemplate}
+              onTemplateSelect={templates.handleTemplateSelection}
+              isModelConfigLoading={false}
+              onOpenModelSettings={handleRegisterModalOpen}
+            />
+          ) : (
+            <AnalysisPanel
+              meetingId={meeting.id}
+              transcripts={meetingData.transcripts}
+            />
+          )}
+        </div>
       </div>
     </motion.div>
   );

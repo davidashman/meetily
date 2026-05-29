@@ -55,6 +55,19 @@ pub struct SummaryProcess {
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct AnalysisProcess {
+    pub meeting_id: String,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub error: Option<String>,
+    pub result: Option<String>,
+    pub start_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub processing_time: f64,
+}
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct TranscriptChunk {
     pub meeting_id: String,
     pub meeting_name: Option<String>,
