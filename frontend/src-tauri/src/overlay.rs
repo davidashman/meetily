@@ -10,7 +10,7 @@
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const WINDOW_LABEL: &str = "mic-overlay";
-const WINDOW_W: f64 = 190.0;
+const WINDOW_W: f64 = 208.0;
 const WINDOW_H: f64 = 80.0;
 const MARGIN: f64 = 20.0;
 

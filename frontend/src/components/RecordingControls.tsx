@@ -39,7 +39,7 @@ const glassStyle: React.CSSProperties = {
 };
 
 const COUNTDOWN_SECS = 30;
-const R = 17; // SVG arc radius (fits in 40×40 container with strokeWidth 2.5)
+const R = 18; // SVG arc radius (fits in 40×40 container with strokeWidth 2.5)
 const CIRC = 2 * Math.PI * R;
 
 export const RecordingControls: React.FC<RecordingControlsProps> = ({
@@ -243,12 +243,12 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   return (
     <TooltipProvider>
       <div
-        className={`flex items-center rounded-full shadow-lg gap-2 bg-background px-2 py-2 `}
+        className={`flex items-center rounded-full shadow-lg gap-2 ${ isRecording ? 'bg-background' : '' } px-2 py-2 `}
         style={draggable ? glassStyle : {}}
         {...(draggable ? { 'data-tauri-drag-region': '' } : {})}
       >
         <div 
-          className="w-14 h-10 flex items-center justify-center rounded-full relative"
+          className="w-16 h-10 flex items-center justify-center rounded-full relative"
           style={(onDismiss || isRecording) ? {} : { 'display': 'none' }}
         >
           <Tooltip>
@@ -280,12 +280,12 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                 </button>
                 {onDismiss && !isRecording && (
                   <svg
-                    width={40} height={40}
+                    width={42} height={42}
                     className="absolute top-0 left-0 -rotate-90"
                     style={{ pointerEvents: 'none' }}
                   >
                     <circle
-                      cx={20} cy={20} r={R}
+                      cx={21} cy={21} r={R}
                       fill="none"
                       stroke="#3b82f6"
                       strokeWidth={2.5}
@@ -337,7 +337,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         </Tooltip>
 
         <div 
-          className="flex items-center justify-center flex-shrink-0 w-14"
+          className="flex items-center justify-center flex-shrink-0 w-16"
           style={(onDismiss || isRecording) ? {} : { 'display': 'none' }}
         >
           <span className={`text-xs font-mono font-semibold tabular-nums ${isPaused || !isRecording ? 'text-gray-400' : 'text-white'}`}>
